@@ -23,6 +23,11 @@ dependencies = [
     "requests==2.32.5",
     "scipy==1.15.3",
     "numpy==1.23.5",
+    "msgraph-sdk==1.0.0",
+    "msgraph-core==1.0.0",
+    "azure-identity==1.15.0",
+    "transformers==4.40.0",
+    "sentencepiece==0.2.0",
 ]
 requires-python = ">=3.10"
 readme = "README.md"
@@ -33,6 +38,7 @@ optimize-asr = "tts_ai_pipeline.optimize_asr:main"
 optimize-tts = "tts_ai_pipeline.optimize_tts:main"
 test-pipeline = "tts_ai_pipeline.tests.test_pipeline:main"
 microphone = "tts_ai_pipeline.microphone:main"
+auto-note = "tts_ai_pipeline.auto_note:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

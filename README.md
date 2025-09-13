@@ -32,6 +32,7 @@ Ideal for applications requiring offline speech processing, such as voice assist
 - **ASR Integration**: Automatic speech recognition using OpenAI's Whisper models
 - **TTS Synthesis**: High-quality text-to-speech using Coqui TTS models
 - **Web Interface**: Gradio-based UI with microphone input support
+- **Auto-Note Creation**: Automatically transcribe, summarize, and create notes in Microsoft OneNote
 - **Containerized**: Docker containers for easy deployment and scaling
 - **Kubernetes Orchestration**: Managed deployment with GPU resource allocation
 - **Configurable Models**: Top-level configuration for selecting AI models
@@ -381,6 +382,146 @@ kubectl exec -it <pod-name> -- /bin/bash
 - Check GitHub Issues for similar problems
 - Ensure all prerequisites are met
 - Provide detailed error logs when reporting issues
+
+## Auto-Note Feature
+
+The Auto-Note feature automatically transcribes audio, summarizes the content, and creates structured notes in Microsoft OneNote.
+
+### Features
+
+- **Automatic Transcription**: Uses the ASR service to transcribe audio files or live recordings
+- **Intelligent Summarization**: Generates concise summaries using transformer-based models
+- **OneNote Integration**: Creates beautifully formatted notes with transcription and summary
+- **Flexible Input**: Process existing audio files or record live audio
+- **Metadata Tracking**: Includes audio file metadata (duration, size, timestamp)
+
+### Setup
+
+#### 1. Install Dependencies
+
+```bash
+pip install -r requirements_test.txt
+```
+
+#### 2. Microsoft Azure Setup
+
+1. **Register an app in Azure AD**:
+   - Go to [Azure Portal](https://portal.azure.com)
+   - Navigate to "Azure Active Directory" > "App registrations"
+   - Click "New registration"
+   - Name your app (e.g., "TTS AI Pipeline")
+   - Set redirect URI type to "Web" with value `http://localhost`
+
+2. **Add OneNote permissions**:
+   - In your app registration, go to "API permissions"
+   - Click "Add a permission" > "Microsoft Graph"
+   - Add these delegated permissions:
+     - `Notes.ReadWrite` - Read and write OneNote notebooks
+     - `Notes.ReadWrite.All` - Read and write all OneNote notebooks
+
+3. **Get credentials**:
+   - Note your "Application (client) ID"
+   - Note your "Directory (tenant) ID"
+   - Create a client secret in "Certificates & secrets"
+
+#### 3. Environment Variables
+
+Set these environment variables or pass them as command arguments:
+
+```bash
+export AZURE_CLIENT_ID="your-client-id"
+export AZURE_TENANT_ID="your-tenant-id"
+export AZURE_CLIENT_SECRET="your-client-secret"
+```
+
+### Usage
+
+#### Process Audio File
+
+```bash
+# Basic usage
+python -m tts_ai_pipeline.auto_note --audio-file recording.wav
+
+# With custom title
+python -m tts_ai_pipeline.auto_note --audio-file recording.wav --title "Meeting Notes"
+
+# Skip OneNote creation
+python -m tts_ai_pipeline.auto_note --audio-file recording.wav --no-note
+```
+
+#### Live Recording
+
+```bash
+# Record and process live audio
+python -m tts_ai_pipeline.auto_note --record --duration 30
+
+# Record with custom settings
+python -m tts_ai_pipeline.auto_note --record --duration 60 --title "Interview Notes"
+```
+
+#### Advanced Configuration
+
+```bash
+# Use different summarization model
+python -m tts_ai_pipeline.auto_note --audio-file recording.wav --summarizer-model large
+
+# Specify ASR service URL
+python -m tts_ai_pipeline.auto_note --audio-file recording.wav --asr-url http://localhost:8000
+
+# Pass Azure credentials directly
+python -m tts_ai_pipeline.auto_note \
+  --audio-file recording.wav \
+  --onenote-client-id "your-client-id" \
+  --onenote-tenant-id "your-tenant-id" \
+  --onenote-client-secret "your-client-secret"
+```
+
+### OneNote Structure
+
+The feature creates a structured notebook hierarchy:
+
+```
+📓 AI Transcriptions (Notebook)
+└── 📑 Transcriptions (Section)
+    ├── 📝 AI Note 20241201_143022
+    ├── 📝 Meeting Notes 20241201_150000
+    └── 📝 Interview Notes 20241201_160000
+```
+
+Each note includes:
+- **Title**: Custom or auto-generated timestamp
+- **Summary**: AI-generated summary of the transcription
+- **Full Transcription**: Complete transcribed text
+- **Metadata**: Audio file details (duration, size, creation time)
+
+### Dependencies
+
+- **Microsoft Graph SDK**: For OneNote API integration
+- **Transformers**: For text summarization (BART/T5 models)
+- **Azure Identity**: For Microsoft authentication
+- **PyAudio**: For microphone recording (optional)
+
+### Troubleshooting
+
+**Authentication Issues**:
+- Verify Azure app registration and permissions
+- Check client ID, tenant ID, and client secret
+- Ensure user has consented to permissions
+
+**Summarization Errors**:
+- Install transformers: `pip install transformers sentencepiece`
+- Check available GPU memory for larger models
+- Use smaller model size if encountering memory issues
+
+**OneNote API Errors**:
+- Verify internet connectivity
+- Check OneNote service status
+- Ensure user has active Microsoft account
+
+**Audio Processing Issues**:
+- Test ASR service: `curl http://localhost:8000/health`
+- Verify audio file format (WAV recommended)
+- Check microphone permissions for live recording
 
 ## Contributing
 

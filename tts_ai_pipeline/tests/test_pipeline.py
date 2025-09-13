@@ -480,6 +480,63 @@ class PipelineTester:
             self.log_test("Microphone Setup Test", False, f"Microphone setup failed: {e}")
             return False
 
+    def test_auto_note_setup(self) -> bool:
+        """Test auto-note component setup and dependencies."""
+        try:
+            # Test imports
+            try:
+                from ..auto_note import AutoNoteProcessor
+                from ..summarizer import TextSummarizer, TRANSFORMERS_AVAILABLE
+                from ..onenote_manager import OneNoteManager, MSGRAPH_AVAILABLE
+                from ..microphone import MicrophoneRecorder, PYAUDIO_AVAILABLE
+            except ImportError as e:
+                self.log_test("Auto-Note Setup Test", False, f"Import failed: {e}")
+                return False
+
+            # Check component availability
+            components_status = {
+                "Transformers (Summarization)": TRANSFORMERS_AVAILABLE,
+                "Microsoft Graph (OneNote)": MSGRAPH_AVAILABLE,
+                "PyAudio (Microphone)": PYAUDIO_AVAILABLE
+            }
+
+            available_components = [name for name, available in components_status.items() if available]
+            unavailable_components = [name for name, available in components_status.items() if not available]
+
+            # Initialize processor (without OneNote credentials for testing)
+            try:
+                processor = AutoNoteProcessor(
+                    onenote_client_id=None,  # Skip OneNote for basic test
+                    onenote_tenant_id=None,
+                    onenote_client_secret=None
+                )
+
+                # Check which components are initialized
+                components_initialized = []
+                if hasattr(processor, 'microphone') and processor.microphone:
+                    components_initialized.append("Microphone")
+                if hasattr(processor, 'summarizer') and processor.summarizer:
+                    components_initialized.append("Summarizer")
+                if hasattr(processor, 'onenote') and processor.onenote:
+                    components_initialized.append("OneNote")
+
+                status_msg = f"Available: {', '.join(available_components) if available_components else 'None'}"
+                if unavailable_components:
+                    status_msg += f" | Missing: {', '.join(unavailable_components)}"
+                if components_initialized:
+                    status_msg += f" | Initialized: {', '.join(components_initialized)}"
+
+                self.log_test("Auto-Note Setup Test", True, status_msg)
+                return True
+
+            except Exception as e:
+                self.log_test("Auto-Note Setup Test", False, f"Initialization failed: {e}")
+                return False
+
+        except Exception as e:
+            self.log_test("Auto-Note Setup Test", False, f"Setup test failed: {e}")
+            return False
+
     def run_all_tests(self):
         """Run all tests."""
         print("🚀 Starting TTS AI Pipeline Testing Suite")
@@ -509,6 +566,12 @@ class PipelineTester:
         print("-" * 38)
 
         self.test_microphone_setup()
+
+        # Test auto-note functionality (optional)
+        print("\n📝 Testing Auto-Note Functionality:")
+        print("-" * 36)
+
+        self.test_auto_note_setup()
 
         # Test full pipeline
         print("\n🔄 Testing Full Pipeline Integration:")
