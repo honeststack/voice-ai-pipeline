@@ -46,36 +46,49 @@ class PipelineTester:
         print("🐳 Starting Docker containers for testing...")
         
         try:
-            # Check if containers are already running
+            # First, stop any running service containers to ensure clean start
+            expected_containers = ["asr-service", "tts-service", "interface-service"]
             result = subprocess.run(
-                ["docker", "ps", "--filter", "name=tts-", "--format", "{{.Names}}"],
+                ["docker", "ps", "--format", "{{.Names}}"],
                 capture_output=True, text=True, check=True
             )
-            running_containers = [name for name in result.stdout.strip().split('\n') if name and not name.startswith('buildx')]
+            running_containers = [name for name in result.stdout.strip().split('\n') if name]
+            containers_to_stop = [name for name in running_containers if name in expected_containers]
+            if containers_to_stop:
+                print(f"   🛑 Stopping running containers: {', '.join(containers_to_stop)}")
+                subprocess.run(["docker", "stop"] + containers_to_stop, capture_output=True)
+                print(f"   ✅ Stopped containers: {', '.join(containers_to_stop)}")
+            
+            # Check if containers are already running
+            result = subprocess.run(
+                ["docker", "ps", "--format", "{{.Names}}"],
+                capture_output=True, text=True, check=True
+            )
+            running_containers = [name for name in result.stdout.strip().split('\n') if name]
             
             # Check for our specific service containers
             expected_containers = ["asr-service", "tts-service", "interface-service"]
-            found_containers = [name for name in running_containers if any(expected in name for expected in expected_containers)]
+            found_containers = [name for name in running_containers if name in expected_containers]
             
             # Check all containers (running or stopped)
             all_result = subprocess.run(
-                ["docker", "ps", "-a", "--filter", "name=tts-", "--format", "{{.Names}}"],
+                ["docker", "ps", "-a", "--format", "{{.Names}}"],
                 capture_output=True, text=True, check=True
             )
-            all_containers = [name for name in all_result.stdout.strip().split('\n') if name and not name.startswith('buildx')]
-            existing_containers = [name for name in all_containers if any(expected in name for expected in expected_containers)]
+            all_containers = [name for name in all_result.stdout.strip().split('\n') if name]
+            existing_containers = [name for name in all_containers if name in expected_containers]
             
-            if len(found_containers) >= 2:  # At least 2 out of 3 services should be running
+            if len(found_containers) == 3:  # All 3 services should be running
                 print(f"   📦 Found running containers: {', '.join(found_containers)}")
                 self.containers_started = True
                 return True
             elif len(found_containers) >= 1:  # At least 1 service is running, check for existing stopped containers
                 print(f"   ⚠️  Found only {len(found_containers)} running containers: {', '.join(found_containers)}")
-                print("   � Checking for existing stopped containers...")
+                print("   🔍 Checking for existing stopped containers...")
                 
                 # Check all containers (running or stopped)
                 all_result = subprocess.run(
-                    ["docker", "ps", "-a", "--filter", "name=tts-", "--format", "{{.Names}}"],
+                    ["docker", "ps", "-a", "--filter", "name=-service", "--format", "{{.Names}}"],
                     capture_output=True, text=True, check=True
                 )
                 all_containers = [name for name in all_result.stdout.strip().split('\n') if name and not name.startswith('buildx')]
@@ -84,7 +97,7 @@ class PipelineTester:
                 # Start existing containers that are not running
                 containers_to_start = [name for name in expected_containers if name in existing_containers and name not in found_containers]
                 if containers_to_start:
-                    print(f"   � Starting stopped containers: {', '.join(containers_to_start)}")
+                    print(f"   🚀 Starting stopped containers: {', '.join(containers_to_start)}")
                     subprocess.run(["docker", "start"] + containers_to_start, check=True)
                     print(f"   ✅ Started containers: {', '.join(containers_to_start)}")
                     # Wait for containers to be ready
@@ -100,11 +113,11 @@ class PipelineTester:
                 
                 # Check all containers (running or stopped)
                 all_result = subprocess.run(
-                    ["docker", "ps", "-a", "--filter", "name=tts-", "--format", "{{.Names}}"],
+                    ["docker", "ps", "-a", "--format", "{{.Names}}"],
                     capture_output=True, text=True, check=True
                 )
-                all_containers = [name for name in all_result.stdout.strip().split('\n') if name and not name.startswith('buildx')]
-                existing_containers = [name for name in all_containers if any(expected in name for expected in expected_containers)]
+                all_containers = [name for name in all_result.stdout.strip().split('\n') if name]
+                existing_containers = [name for name in all_containers if name in expected_containers]
                 
                 if existing_containers:
                     print(f"   🔄 Found existing containers: {', '.join(existing_containers)}")
@@ -145,7 +158,7 @@ class PipelineTester:
                         "docker", "run", "-d", "--name", "asr-service", 
                         "--gpus", "all", "-p", "8000:8000",
                         "-v", f"{project_root}/models:/app/models",
-                        "tts-asr:latest"
+                        "asr:latest"
                     ], check=True)
                     print("   ✅ Started ASR service")
                 except subprocess.CalledProcessError:
@@ -157,7 +170,7 @@ class PipelineTester:
                         "docker", "run", "-d", "--name", "tts-service",
                         "--gpus", "all", "-p", "8001:8001", 
                         "-v", f"{project_root}/models:/app/models",
-                        "tts-tts:latest"
+                        "tts:latest"
                     ], check=True)
                     print("   ✅ Started TTS service")
                 except subprocess.CalledProcessError:
@@ -168,7 +181,7 @@ class PipelineTester:
                     subprocess.run([
                         "docker", "run", "-d", "--name", "interface-service",
                         "-p", "7860:7860",
-                        "tts-interface:latest"
+                        "interface:latest"
                     ], check=True)
                     print("   ✅ Started Interface service")
                 except subprocess.CalledProcessError:
@@ -198,7 +211,7 @@ class PipelineTester:
         try:
             # Check which containers exist
             result = subprocess.run(
-                ["docker", "ps", "-a", "--filter", "name=tts-", "--format", "{{.Names}}"],
+                ["docker", "ps", "-a", "--filter", "name=-service", "--format", "{{.Names}}"],
                 capture_output=True, text=True, check=True
             )
             all_containers = [name for name in result.stdout.strip().split('\n') if name]
@@ -206,7 +219,7 @@ class PipelineTester:
             # Only stop containers we created or that match our service names
             containers_to_stop = []
             for container in all_containers:
-                if container in ["tts-asr-test", "tts-tts-test", "tts-interface-test"] or \
+                if container in ["asr-test", "tts-test", "interface-test"] or \
                    container in ["asr-service", "tts-service", "interface-service"]:
                     containers_to_stop.append(container)
             

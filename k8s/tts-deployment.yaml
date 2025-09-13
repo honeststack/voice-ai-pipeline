@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tts-deployment
+  labels:
+    app: tts
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tts
+  template:
+    metadata:
+      labels:
+        app: tts
+    spec:
+      containers:
+      - name: tts
+        image: tts:latest
+        ports:
+        - containerPort: 8001
+        env:
+        - name: TTS_MODEL
+          value: "tts_models/en/ljspeech/tacotron2-DDC_ph"
+        - name: USE_GPU
+          value: "true"
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+          requests:
+            memory: "2Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tts-service
+  labels:
+    app: tts
+spec:
+  selector:
+    app: tts
+  ports:
+    - protocol: TCP
+      port: 8001
+      targetPort: 8001
+  type: ClusterIP

@@ -62,7 +62,7 @@ Components communicate via Kubernetes services, with GPU resources allocated as 
   - Linux/Windows/macOS with Docker support
 
 - **Software**:
-  - Docker and Docker Compose
+  - Docker and Docker Compose (with Buildx support)
   - Kubernetes cluster (local: minikube/kind, or cloud: GKE/EKS)
   - kubectl configured for your cluster
   - NVIDIA Container Toolkit (for GPU support)
@@ -95,11 +95,17 @@ Components communicate via Kubernetes services, with GPU resources allocated as 
      ```
    - Ensure NVIDIA device plugin is installed in your cluster
 
-4. **Build Docker images**:
+4. **Build Docker images** (optional - test script handles this automatically):
    ```bash
-   docker build -f docker/asr.Dockerfile -t tts-asr:latest .
-   docker build -f docker/tts.Dockerfile -t tts-tts:latest .
-   docker build -f docker/interface.Dockerfile -t tts-interface:latest .
+   # Using Docker Buildx (recommended)
+   docker buildx build -f docker/asr.Dockerfile -t asr:latest --load .
+   docker buildx build -f docker/tts.Dockerfile -t tts:latest --load .
+   docker buildx build -f docker/interface.Dockerfile -t interface:latest --load .
+
+   # Or using legacy Docker build
+   docker build -f docker/asr.Dockerfile -t asr:latest .
+   docker build -f docker/tts.Dockerfile -t tts:latest .
+   docker build -f docker/interface.Dockerfile -t interface:latest .
    ```
 
 ## Quickstart
@@ -279,6 +285,159 @@ The script provides detailed output including:
 - Performance metrics (file sizes, accuracy percentages)
 - Error messages for failed tests
 - Final summary with pass/fail counts
+
+### Kubernetes Testing
+
+The project includes comprehensive Kubernetes testing capabilities to validate deployments, services, and end-to-end functionality in containerized environments.
+
+#### Quick Kubernetes Test
+
+Run tests against an existing Kubernetes deployment:
+```bash
+make test-k8s-quick
+```
+
+#### Full Kubernetes Test Suite
+
+Run complete test suite including setup, deployment, and testing:
+```bash
+make test-k8s-full
+```
+
+#### Individual Kubernetes Test Commands
+
+```bash
+# Setup and deploy to Kubernetes
+make test-k8s-setup
+
+# Run tests only (deployment must exist)
+make test-k8s-test
+
+# Setup port forwarding for local testing
+make test-k8s-port-forward
+
+# Show service URLs
+make test-k8s-urls
+
+# Clean up Kubernetes resources
+make test-k8s-cleanup
+
+# Test with Minikube
+make test-k8s-minikube
+
+# Check deployment health
+make test-k8s-health
+```
+
+#### Using the Test Script Directly
+
+The Kubernetes test script provides more granular control:
+
+```bash
+# Show help
+./scripts/test-k8s.sh help
+
+# Full test suite
+./scripts/test-k8s.sh full
+
+# Quick test (deployment must exist)
+./scripts/test-k8s.sh quick
+
+# Setup and deploy only
+./scripts/test-k8s.sh setup
+
+# Run tests only
+./scripts/test-k8s.sh test
+
+# Setup port forwarding
+./scripts/test-k8s.sh port-forward
+
+# Show service URLs
+./scripts/test-k8s.sh urls
+
+# Clean up resources
+./scripts/test-k8s.sh cleanup
+```
+
+#### Kubernetes Test Features
+
+The Kubernetes test suite validates:
+
+1. **Cluster Connectivity**:
+   - kubectl configuration and cluster access
+   - Kubernetes API server connectivity
+
+2. **Deployment Status**:
+   - Pod creation and scheduling
+   - Container startup and health checks
+   - Resource allocation (CPU, memory, GPU)
+
+3. **Service Configuration**:
+   - Service discovery and DNS resolution
+   - Load balancer configuration
+   - Network policies and security
+
+4. **Pod Health**:
+   - Container health probes
+   - Resource utilization monitoring
+   - Log aggregation and error detection
+
+5. **Load Balancing**:
+   - Service endpoint distribution
+   - Traffic routing and failover
+   - Session persistence (if configured)
+
+6. **End-to-End Functionality**:
+   - API endpoint accessibility
+   - Service-to-service communication
+   - Data flow through the pipeline
+
+#### Environment Variables for Kubernetes Testing
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `K8S_NAMESPACE` | "default" | Kubernetes namespace for testing |
+| `K8S_TIMEOUT` | "300" | Timeout for operations (seconds) |
+| `K8S_RETRY_COUNT` | "3" | Number of retry attempts |
+| `K8S_PROVIDER` | "" | Kubernetes provider (minikube, etc.) |
+
+Example with custom settings:
+```bash
+K8S_NAMESPACE=voice-ai K8S_TIMEOUT=600 ./scripts/test-k8s.sh full
+```
+
+#### Kubernetes Test Requirements
+
+- kubectl configured and connected to cluster
+- Docker for building images (if using local builds)
+- Minikube (optional, for local testing)
+- Python requests library for API testing
+
+#### Kubernetes Test Output
+
+The test script provides colored output with:
+- 🚀 Test suite progress and status
+- ✅ Success indicators for passed tests
+- ❌ Error details for failed tests
+- ⚠️ Warnings for non-critical issues
+- ℹ️ Informational messages and URLs
+
+Example output:
+```
+🚀 Starting Full Kubernetes Test Suite
+========================================
+✅ kubectl is configured and connected to cluster
+✅ All dependencies are available
+✅ Minikube is ready
+✅ All Docker images built successfully
+✅ Images loaded into Minikube
+✅ Deployment completed successfully
+✅ ASR Service: http://localhost:8000
+✅ TTS Service: http://localhost:8001
+✅ Interface Service: http://localhost:7860
+✅ Test suite completed
+🎉 Full test suite completed successfully!
+```
 
 ## Configuration
 

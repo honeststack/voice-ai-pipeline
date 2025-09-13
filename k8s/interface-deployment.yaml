@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: interface-deployment
+  labels:
+    app: interface
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: interface
+  template:
+    metadata:
+      labels:
+        app: interface
+    spec:
+      containers:
+      - name: interface
+        image: interface:latest
+        ports:
+        - containerPort: 7860
+        env:
+        - name: ASR_URL
+          value: "http://asr-service:8000"
+        - name: TTS_URL
+          value: "http://tts-service:8001"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "250m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 7860
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 7860
+          initialDelaySeconds: 10
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: interface-service
+  labels:
+    app: interface
+spec:
+  selector:
+    app: interface
+  ports:
+    - protocol: TCP
+      port: 7860
+      targetPort: 7860
+  type: LoadBalancer

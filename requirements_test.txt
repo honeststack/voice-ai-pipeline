@@ -1,5 +1,5 @@
 requests>=2.25.0
-# pyaudio>=0.2.11  # Requires system dependencies: apt-get install portaudio19-dev python3-pyaudio
+pyaudio>=0.2.11  # Requires system dependencies: apt-get install portaudio19-dev python3-pyaudio
 numpy>=1.21.0
 msgraph-sdk>=1.0.0
 msgraph-core>=1.0.0

@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: asr
-        image: tts-asr:latest
+        image: asr:latest
         ports:
         - containerPort: 8000
         env:
