@@ -13,7 +13,7 @@ Features:
 - Real-time audio level monitoring
 
 Usage:
-    python -m tts_ai_pipeline.microphone
+    python -m voice_ai_pipeline.microphone
 
 Requirements:
     - pyaudio (optional, for microphone recording)

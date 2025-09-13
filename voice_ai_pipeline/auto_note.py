@@ -14,8 +14,8 @@ Features:
 - Error handling and recovery
 
 Usage:
-    python -m tts_ai_pipeline.auto_note --audio-file recording.wav
-    python -m tts_ai_pipeline.auto_note --record --duration 10
+    python -m voice_ai_pipeline.auto_note --audio-file recording.wav
+    python -m voice_ai_pipeline.auto_note --record --duration 10
 
 Requirements:
     - All dependencies from microphone, summarizer, and onenote_manager components

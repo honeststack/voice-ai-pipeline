@@ -10,7 +10,7 @@ This script tests all components of the TTS AI Pipeline:
 - Full pipeline integration
 
 Usage:
-    python -m tts_ai_pipeline.tests.test_pipeline
+    python -m voice_ai_pipeline.tests.test_pipeline
 
 Requirements:
     - requests

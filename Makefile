@@ -94,33 +94,33 @@ clean: ## Clean up Docker images and Kubernetes resources
 # Run in development mode (local services)
 dev: ## Run services locally for development
 	@echo "Starting ASR service..."
-	./.venv/bin/python -m tts_ai_pipeline.asr &
+	./.venv/bin/python -m voice_ai_pipeline.asr &
 	@echo "Starting TTS service..."
-	./.venv/bin/python -m tts_ai_pipeline.tts &
+	./.venv/bin/python -m voice_ai_pipeline.tts &
 	@echo "Starting Interface..."
-	./.venv/bin/python -m tts_ai_pipeline.interface &
+	./.venv/bin/python -m voice_ai_pipeline.interface &
 	@echo "Services started. Access interface at http://localhost:7860"
-	@echo "Stop with: pkill -f 'python -m tts_ai_pipeline'"
+	@echo "Stop with: pkill -f 'python -m voice_ai_pipeline'"
 
 # Run optimization scripts
 optimize: ## Run model optimization scripts
 	@echo "Running ASR optimization..."
-	./.venv/bin/python -m tts_ai_pipeline.optimize_asr
+	./.venv/bin/python -m voice_ai_pipeline.optimize_asr
 	@echo "Running TTS optimization..."
-	./.venv/bin/python -m tts_ai_pipeline.optimize_tts
+	./.venv/bin/python -m voice_ai_pipeline.optimize_tts
 
 # Lint code
 lint: ## Run linting on Python code
 	@echo "Running flake8..."
 	./.venv/bin/pip install flake8
-	./.venv/bin/flake8 tts_ai_pipeline/ --max-line-length=100
+	./.venv/bin/flake8 voice_ai_pipeline/ --max-line-length=100
 	@echo "Linting complete."
 
 # Format code
 format: ## Format Python code with black
 	@echo "Running black formatter..."
 	./.venv/bin/pip install black
-	./.venv/bin/black tts_ai_pipeline/
+	./.venv/bin/black voice_ai_pipeline/
 	@echo "Code formatted."
 
 # Check GPU availability
@@ -137,7 +137,7 @@ full-setup: setup build deploy ## Complete setup: install deps, build images, de
 # Stop development services
 stop-dev: ## Stop development services
 	@echo "Stopping services..."
-	pkill -f "python -m tts_ai_pipeline" || true
+	pkill -f "python -m voice_ai_pipeline" || true
 	@echo "Services stopped."
 
 # Run comprehensive pipeline tests
@@ -145,25 +145,25 @@ test: ## Run comprehensive tests on all pipeline components
 	@echo "Installing test dependencies..."
 	./.venv/bin/pip install -r requirements_test.txt
 	@echo "Running pipeline tests..."
-	./.venv/bin/python -m tts_ai_pipeline.tests.test_pipeline
+	./.venv/bin/python -m voice_ai_pipeline.tests.test_pipeline
 
 # Run tests with verbose output
 test-verbose: ## Run tests with detailed output
 	@echo "Installing test dependencies..."
 	./.venv/bin/pip install -r requirements_test.txt
 	@echo "Running pipeline tests with verbose output..."
-	python3 -u -m tts_ai_pipeline.tests.test_pipeline
+	python3 -u -m voice_ai_pipeline.tests.test_pipeline
 
 # Test microphone functionality
 test-microphone: ## Test microphone recording and ASR transcription
 	@echo "Installing test dependencies..."
 	./.venv/bin/pip install -r requirements_test.txt
 	@echo "Testing microphone functionality..."
-	./.venv/bin/python -m tts_ai_pipeline.microphone --test
+	./.venv/bin/python -m voice_ai_pipeline.microphone --test
 
 # List available audio devices
 list-devices: ## List available microphone devices
 	@echo "Installing test dependencies..."
 	./.venv/bin/pip install -r requirements_test.txt
 	@echo "Listing available audio devices..."
-	./.venv/bin/python -m tts_ai_pipeline.microphone --list-devices
+	./.venv/bin/python -m voice_ai_pipeline.microphone --list-devices

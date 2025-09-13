@@ -14,7 +14,7 @@ Features:
 - No external dependencies or authentication required
 
 Usage:
-    from tts_ai_pipeline.local_notes import LocalNoteManager
+    from voice_ai_pipeline.local_notes import LocalNoteManager
     manager = LocalNoteManager()
     manager.create_note("My Note", "Full transcription", "Summary")
 """

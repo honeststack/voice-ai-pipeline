@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tts-ai-pipeline"
+name = "voice-ai-pipeline"
 version = "0.1.0"
 description = "A TTS AI pipeline with ASR and TTS using local models"
 authors = [
@@ -34,15 +34,15 @@ readme = "README.md"
 license = {text = "MIT"}
 
 [project.scripts]
-optimize-asr = "tts_ai_pipeline.optimize_asr:main"
-optimize-tts = "tts_ai_pipeline.optimize_tts:main"
-test-pipeline = "tts_ai_pipeline.tests.test_pipeline:main"
-microphone = "tts_ai_pipeline.microphone:main"
-auto-note = "tts_ai_pipeline.auto_note:main"
+optimize-asr = "voice_ai_pipeline.optimize_asr:main"
+optimize-tts = "voice_ai_pipeline.optimize_tts:main"
+test-pipeline = "voice_ai_pipeline.tests.test_pipeline:main"
+microphone = "voice_ai_pipeline.microphone:main"
+auto-note = "voice_ai_pipeline.auto_note:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["tts_ai_pipeline*"]
+include = ["voice_ai_pipeline*"]
 
 [tool.setuptools.package-data]
-tts_ai_pipeline = ["*"]
+voice_ai_pipeline = ["*"]

@@ -38,7 +38,7 @@ COPY --chown=app:app requirements_tts.txt .
 RUN pip install --no-cache-dir --user -r requirements_tts.txt
 
 # Copy application code
-COPY --chown=app:app tts_ai_pipeline/tts.py .
+COPY --chown=app:app voice_ai_pipeline/tts.py .
 
 # Add Python user bin to PATH
 ENV PATH="/home/app/.local/bin:$PATH"

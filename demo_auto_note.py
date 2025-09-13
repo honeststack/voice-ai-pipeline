@@ -17,10 +17,10 @@ from pathlib import Path
 # Add the parent directory to the path so we can import our modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from tts_ai_pipeline.microphone import MicrophoneRecorder, PYAUDIO_AVAILABLE
-from tts_ai_pipeline.summarizer import TextSummarizer, TRANSFORMERS_AVAILABLE
-from tts_ai_pipeline.onenote_manager import OneNoteManager, MSGRAPH_AVAILABLE
-from tts_ai_pipeline.auto_note import AutoNoteProcessor
+from voice_ai_pipeline.microphone import MicrophoneRecorder, PYAUDIO_AVAILABLE
+from voice_ai_pipeline.summarizer import TextSummarizer, TRANSFORMERS_AVAILABLE
+from voice_ai_pipeline.onenote_manager import OneNoteManager, MSGRAPH_AVAILABLE
+from voice_ai_pipeline.auto_note import AutoNoteProcessor
 
 
 def demo_basic_components():
@@ -125,8 +125,8 @@ def demo_file_processing():
     # Create a simple demo (would need actual audio file for real demo)
     print("   Note: This demo requires an actual audio file for full functionality")
     print("   Example usage:")
-    print("   python -m tts_ai_pipeline.auto_note --audio-file my_recording.wav")
-    print("   python -m tts_ai_pipeline.auto_note --record --duration 10")
+    print("   python -m voice_ai_pipeline.auto_note --audio-file my_recording.wav")
+    print("   python -m voice_ai_pipeline.auto_note --record --duration 10")
 
 
 def demo_setup_instructions():
@@ -152,14 +152,14 @@ def demo_setup_instructions():
 
     print("\n4. Usage examples:")
     print("   # Process audio file")
-    print("   python -m tts_ai_pipeline.auto_note --audio-file recording.wav")
+    print("   python -m voice_ai_pipeline.auto_note --audio-file recording.wav")
     print("   ")
     print("   # Record live audio")
-    print("   python -m tts_ai_pipeline.auto_note --record --duration 30")
+    print("   python -m voice_ai_pipeline.auto_note --record --duration 30")
     print("   ")
     print("   # Test components")
-    print("   python -m tts_ai_pipeline.microphone --list-devices")
-    print("   python -m tts_ai_pipeline.summarizer --text 'Your text here'")
+    print("   python -m voice_ai_pipeline.microphone --list-devices")
+    print("   python -m voice_ai_pipeline.summarizer --text 'Your text here'")
 
 
 def main():

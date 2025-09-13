@@ -76,8 +76,8 @@ Components communicate via Kubernetes services, with GPU resources allocated as 
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/thephiltacular/tts-ai-pipeline.git
-   cd tts-ai-pipeline
+   git clone https://github.com/thephiltacular/voice-ai-pipeline.git
+   cd voice-ai-pipeline
    ```
 
 2. **Set up Python environment** (optional, for development):
@@ -122,7 +122,7 @@ Components communicate via Kubernetes services, with GPU resources allocated as 
 
 4. **Test the pipeline**:
    - Use the comprehensive testing script: `make test`
-   - Or run manually: `python -m tts_ai_pipeline.test_pipeline`
+   - Or run manually: `python -m voice_ai_pipeline.test_pipeline`
    - The script tests all services and full pipeline integration
 
 ## Usage
@@ -158,13 +158,13 @@ Run components individually for testing:
 
 ```bash
 # ASR Service
-python -m tts_ai_pipeline.asr
+python -m voice_ai_pipeline.asr
 
 # TTS Service
-python -m tts_ai_pipeline.tts
+python -m voice_ai_pipeline.tts
 
 # Interface
-python -m tts_ai_pipeline.interface
+python -m voice_ai_pipeline.interface
 ```
 
 Adjust environment variables for local URLs.
@@ -180,7 +180,7 @@ make test
 
 Or run the script as a module:
 ```bash
-python -m tts_ai_pipeline.tests.test_pipeline
+python -m voice_ai_pipeline.tests.test_pipeline
 ```
 
 Or use the installed console script:
@@ -209,16 +209,16 @@ make list-devices
 Or use the microphone component directly:
 ```bash
 # List devices
-python -m tts_ai_pipeline.microphone --list-devices
+python -m voice_ai_pipeline.microphone --list-devices
 
 # Test recording and transcription
-python -m tts_ai_pipeline.microphone --test
+python -m voice_ai_pipeline.microphone --test
 
 # Record to file
-python -m tts_ai_pipeline.microphone --output recording.wav --duration 10
+python -m voice_ai_pipeline.microphone --output recording.wav --duration 10
 
 # Interactive recording
-python -m tts_ai_pipeline.microphone
+python -m voice_ai_pipeline.microphone
 ```
 
 #### Microphone Setup
@@ -247,7 +247,7 @@ If PyAudio is not available, microphone testing will be skipped gracefully.
 
 ### What the Test Script Validates
 
-The testing script (`tts_ai_pipeline/tests/test_pipeline.py`) performs the following tests:
+The testing script (`voice_ai_pipeline/tests/test_pipeline.py`) performs the following tests:
 
 1. **Service Health Checks**:
    - ASR service health endpoint (`/health`)
@@ -406,7 +406,7 @@ For WSL2 or local development without Azure:
 pip install -r requirements_test.txt
 
 # Use local note storage (no Azure setup needed)
-python -m tts_ai_pipeline.auto_note --audio-file recording.wav --note-storage local
+python -m voice_ai_pipeline.auto_note --audio-file recording.wav --note-storage local
 ```
 
 #### Option 2: Microsoft OneNote (Requires Azure)
@@ -444,48 +444,48 @@ export AZURE_CLIENT_SECRET="your-client-secret"
 
 ```bash
 # Local notes (no Azure setup required)
-python -m tts_ai_pipeline.auto_note --audio-file recording.wav --note-storage local
+python -m voice_ai_pipeline.auto_note --audio-file recording.wav --note-storage local
 
 # OneNote (requires Azure setup)
-python -m tts_ai_pipeline.auto_note --audio-file recording.wav --note-storage onenote
+python -m voice_ai_pipeline.auto_note --audio-file recording.wav --note-storage onenote
 
 # Auto mode (prefers OneNote, falls back to local)
-python -m tts_ai_pipeline.auto_note --audio-file recording.wav --note-storage auto
+python -m voice_ai_pipeline.auto_note --audio-file recording.wav --note-storage auto
 
 # With custom title
-python -m tts_ai_pipeline.auto_note --audio-file recording.wav --title "Meeting Notes"
+python -m voice_ai_pipeline.auto_note --audio-file recording.wav --title "Meeting Notes"
 
 # Skip note creation (just transcribe and summarize)
-python -m tts_ai_pipeline.auto_note --audio-file recording.wav --no-note
+python -m voice_ai_pipeline.auto_note --audio-file recording.wav --no-note
 ```
 
 #### Live Recording
 
 ```bash
 # Record live audio with local storage
-python -m tts_ai_pipeline.auto_note --record --duration 30 --note-storage local
+python -m voice_ai_pipeline.auto_note --record --duration 30 --note-storage local
 
 # Record with OneNote
-python -m tts_ai_pipeline.auto_note --record --duration 60 --note-storage onenote
+python -m voice_ai_pipeline.auto_note --record --duration 60 --note-storage onenote
 
 # Record with custom settings
-python -m tts_ai_pipeline.auto_note --record --duration 60 --title "Interview Notes"
+python -m voice_ai_pipeline.auto_note --record --duration 60 --title "Interview Notes"
 ```
 
 #### Advanced Configuration
 
 ```bash
 # Use different summarization model
-python -m tts_ai_pipeline.auto_note --audio-file recording.wav --summarizer-model large
+python -m voice_ai_pipeline.auto_note --audio-file recording.wav --summarizer-model large
 
 # Specify ASR service URL
-python -m tts_ai_pipeline.auto_note --audio-file recording.wav --asr-url http://localhost:8000
+python -m voice_ai_pipeline.auto_note --audio-file recording.wav --asr-url http://localhost:8000
 
 # Custom local notes directory
-python -m tts_ai_pipeline.auto_note --audio-file recording.wav --note-storage local --local-notes-dir ~/my_notes
+python -m voice_ai_pipeline.auto_note --audio-file recording.wav --note-storage local --local-notes-dir ~/my_notes
 
 # Pass Azure credentials directly
-python -m tts_ai_pipeline.auto_note \
+python -m voice_ai_pipeline.auto_note \
   --audio-file recording.wav \
   --note-storage onenote \
   --onenote-client-id "your-client-id" \
@@ -564,8 +564,8 @@ pip install -e .
 pytest
 
 # Format code
-black tts_ai_pipeline/
-isort tts_ai_pipeline/
+black voice_ai_pipeline/
+isort voice_ai_pipeline/
 ```
 
 ## License
