@@ -397,13 +397,19 @@ The Auto-Note feature automatically transcribes audio, summarizes the content, a
 
 ### Setup
 
-#### 1. Install Dependencies
+#### Option 1: Local Notes (No Azure Required)
+
+For WSL2 or local development without Azure:
 
 ```bash
+# Install basic dependencies
 pip install -r requirements_test.txt
+
+# Use local note storage (no Azure setup needed)
+python -m tts_ai_pipeline.auto_note --audio-file recording.wav --note-storage local
 ```
 
-#### 2. Microsoft Azure Setup
+#### Option 2: Microsoft OneNote (Requires Azure)
 
 1. **Register an app in Azure AD**:
    - Go to [Azure Portal](https://portal.azure.com)
@@ -424,9 +430,7 @@ pip install -r requirements_test.txt
    - Note your "Directory (tenant) ID"
    - Create a client secret in "Certificates & secrets"
 
-#### 3. Environment Variables
-
-Set these environment variables or pass them as command arguments:
+4. **Set environment variables**:
 
 ```bash
 export AZURE_CLIENT_ID="your-client-id"
@@ -439,21 +443,30 @@ export AZURE_CLIENT_SECRET="your-client-secret"
 #### Process Audio File
 
 ```bash
-# Basic usage
-python -m tts_ai_pipeline.auto_note --audio-file recording.wav
+# Local notes (no Azure setup required)
+python -m tts_ai_pipeline.auto_note --audio-file recording.wav --note-storage local
+
+# OneNote (requires Azure setup)
+python -m tts_ai_pipeline.auto_note --audio-file recording.wav --note-storage onenote
+
+# Auto mode (prefers OneNote, falls back to local)
+python -m tts_ai_pipeline.auto_note --audio-file recording.wav --note-storage auto
 
 # With custom title
 python -m tts_ai_pipeline.auto_note --audio-file recording.wav --title "Meeting Notes"
 
-# Skip OneNote creation
+# Skip note creation (just transcribe and summarize)
 python -m tts_ai_pipeline.auto_note --audio-file recording.wav --no-note
 ```
 
 #### Live Recording
 
 ```bash
-# Record and process live audio
-python -m tts_ai_pipeline.auto_note --record --duration 30
+# Record live audio with local storage
+python -m tts_ai_pipeline.auto_note --record --duration 30 --note-storage local
+
+# Record with OneNote
+python -m tts_ai_pipeline.auto_note --record --duration 60 --note-storage onenote
 
 # Record with custom settings
 python -m tts_ai_pipeline.auto_note --record --duration 60 --title "Interview Notes"
@@ -468,9 +481,13 @@ python -m tts_ai_pipeline.auto_note --audio-file recording.wav --summarizer-mode
 # Specify ASR service URL
 python -m tts_ai_pipeline.auto_note --audio-file recording.wav --asr-url http://localhost:8000
 
+# Custom local notes directory
+python -m tts_ai_pipeline.auto_note --audio-file recording.wav --note-storage local --local-notes-dir ~/my_notes
+
 # Pass Azure credentials directly
 python -m tts_ai_pipeline.auto_note \
   --audio-file recording.wav \
+  --note-storage onenote \
   --onenote-client-id "your-client-id" \
   --onenote-tenant-id "your-tenant-id" \
   --onenote-client-secret "your-client-secret"
@@ -496,10 +513,12 @@ Each note includes:
 
 ### Dependencies
 
-- **Microsoft Graph SDK**: For OneNote API integration
+- **Microsoft Graph SDK**: For OneNote API integration (optional)
 - **Transformers**: For text summarization (BART/T5 models)
-- **Azure Identity**: For Microsoft authentication
+- **Azure Identity**: For Microsoft authentication (optional)
 - **PyAudio**: For microphone recording (optional)
+
+**Note**: Only transformers is required for basic functionality. Microsoft Graph SDK and Azure Identity are only needed for OneNote integration.
 
 ### Troubleshooting
 

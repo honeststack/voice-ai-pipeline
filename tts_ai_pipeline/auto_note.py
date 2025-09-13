@@ -35,6 +35,7 @@ from datetime import datetime
 from .microphone import MicrophoneRecorder, PYAUDIO_AVAILABLE
 from .summarizer import TextSummarizer, TRANSFORMERS_AVAILABLE
 from .onenote_manager import OneNoteManager, MSGRAPH_AVAILABLE
+from .local_notes import LocalNoteManager
 
 
 class AutoNoteProcessor:
@@ -44,7 +45,8 @@ class AutoNoteProcessor:
                  onenote_client_id: Optional[str] = None,
                  onenote_tenant_id: Optional[str] = None,
                  onenote_client_secret: Optional[str] = None,
-                 summarizer_model: str = "medium"):
+                 summarizer_model: str = "medium",
+                 note_storage: str = "auto"):
         """
         Initialize the auto-note processor.
 
@@ -54,8 +56,10 @@ class AutoNoteProcessor:
             onenote_tenant_id: Azure tenant ID
             onenote_client_secret: Azure app client secret
             summarizer_model: Size of summarization model ('small', 'medium', 'large')
+            note_storage: Note storage method ('auto', 'onenote', 'local')
         """
         self.asr_url = asr_url
+        self.note_storage = note_storage
         self.onenote_config = {
             'client_id': onenote_client_id,
             'tenant_id': onenote_tenant_id,
@@ -67,6 +71,7 @@ class AutoNoteProcessor:
         self.microphone = None
         self.summarizer = None
         self.onenote = None
+        self.local_notes = None
 
         self._check_dependencies()
         self._initialize_components()
@@ -81,8 +86,12 @@ class AutoNoteProcessor:
         if not TRANSFORMERS_AVAILABLE:
             missing_deps.append("Transformers (for text summarization)")
 
-        if not MSGRAPH_AVAILABLE:
-            missing_deps.append("Microsoft Graph SDK (for OneNote integration)")
+        # Check note storage dependencies
+        if self.note_storage in ['auto', 'onenote'] and not MSGRAPH_AVAILABLE:
+            if self.note_storage == 'onenote':
+                missing_deps.append("Microsoft Graph SDK (for OneNote)")
+            elif self.note_storage == 'auto':
+                print("⚠️  Microsoft Graph SDK not available, will use local notes")
 
         if missing_deps:
             print("⚠️  Missing optional dependencies:")
@@ -91,7 +100,8 @@ class AutoNoteProcessor:
             print("\n📦 Install all dependencies:")
             print("   pip install -r requirements_test.txt")
             print("\n🔧 For PyAudio on Ubuntu:")
-            print("   sudo apt-get install portaudio19-dev python3-dev")
+            print("   sudo apt-get install portaudio19-dev python3-pyaudio")
+            print("   pip install pyaudio")
             print("   pip install pyaudio")
 
     def _initialize_components(self):
@@ -113,12 +123,19 @@ class AutoNoteProcessor:
             else:
                 print("⚠️  Summarizer component not available")
 
-            # Initialize OneNote (optional)
-            if MSGRAPH_AVAILABLE and self.onenote_config['client_id']:
+            # Initialize note storage
+            if self.note_storage == 'onenote' and MSGRAPH_AVAILABLE and self.onenote_config['client_id']:
                 self.onenote = OneNoteManager(**self.onenote_config)
                 print("📓 OneNote component initialized")
+            elif self.note_storage == 'local' or (self.note_storage == 'auto' and not (MSGRAPH_AVAILABLE and self.onenote_config['client_id'])):
+                self.local_notes = LocalNoteManager()
+                print("📁 Local notes component initialized")
+                if self.note_storage == 'auto':
+                    print("   (Using local notes as fallback)")
             else:
-                print("⚠️  OneNote component not available (missing client_id)")
+                print("⚠️  No note storage available")
+                if self.note_storage == 'onenote':
+                    print("   (OneNote requires Azure credentials)")
 
         except Exception as e:
             print(f"❌ Failed to initialize components: {e}")
@@ -169,17 +186,18 @@ class AutoNoteProcessor:
                 print("⚠️  Summary generation failed, using truncated transcription")
                 results['summary'] = transcription[:500] + "..." if len(transcription) > 500 else transcription
 
-            # Step 3: Create OneNote (if enabled)
-            if create_note and self.onenote:
-                note_created = self._create_onenote(title, transcription, summary, audio_file)
+            # Create OneNote (if enabled)
+            if create_note and (self.onenote or self.local_notes):
+                note_created = self._create_note(title, transcription, summary, audio_file)
                 results['note_created'] = note_created
 
                 if note_created:
-                    print("✅ OneNote created successfully")
+                    storage_type = "OneNote" if self.onenote else "local file"
+                    print(f"✅ Note created successfully in {storage_type}")
                 else:
-                    print("❌ Failed to create OneNote")
-            elif create_note and not self.onenote:
-                print("⚠️  OneNote not configured, skipping note creation")
+                    print("❌ Failed to create note")
+            elif create_note and not (self.onenote or self.local_notes):
+                print("⚠️  No note storage configured, skipping note creation")
 
             results['success'] = True
             results['processing_time'] = time.time() - start_time
@@ -239,21 +257,27 @@ class AutoNoteProcessor:
             summary = self._summarize_text(transcription)
             results['summary'] = summary or transcription[:500] + "..."
 
-            # Create OneNote
-            if create_note and self.onenote:
-                # Save temporary audio file for metadata
+            # Create note
+            if create_note and (self.onenote or self.local_notes):
+                # Save temporary audio file for metadata (needed for both storage types)
                 with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
                     temp_filename = temp_file.name
 
                 try:
                     if self.microphone.save_recording(temp_filename):
-                        note_created = self._create_onenote(title, transcription, summary, temp_filename)
+                        note_created = self._create_note(title, transcription, summary, temp_filename)
                         results['note_created'] = note_created
+                        if note_created:
+                            storage_type = "OneNote" if self.onenote else "local file"
+                            print(f"✅ Note created successfully in {storage_type}")
                     else:
                         results['note_created'] = False
+                        print("❌ Failed to save temporary audio file")
                 finally:
                     if os.path.exists(temp_filename):
                         os.unlink(temp_filename)
+            elif create_note and not (self.onenote or self.local_notes):
+                print("⚠️  No note storage configured, skipping note creation")
 
             results['success'] = True
             results['processing_time'] = time.time() - start_time
@@ -286,10 +310,11 @@ class AutoNoteProcessor:
             print(f"❌ Summarization failed: {e}")
             return None
 
-    def _create_onenote(self, title: Optional[str], transcription: str,
-                       summary: Optional[str], audio_file: str) -> bool:
-        """Create OneNote entry."""
-        if not self.onenote:
+    def _create_note(self, title: Optional[str], transcription: str,
+                    summary: Optional[str], audio_file: str) -> bool:
+        """Create a note using the configured storage method."""
+        if not self.onenote and not self.local_notes:
+            print("❌ No note storage available")
             return False
 
         try:
@@ -305,16 +330,28 @@ class AutoNoteProcessor:
             # Get audio file metadata
             metadata = self._get_audio_metadata(audio_file)
 
-            # Create the note
-            return self.onenote.create_transcription_note(
-                transcription=transcription,
-                summary=summary,
-                title=title,
-                metadata=metadata
-            )
+            # Create note based on storage method
+            if self.onenote:
+                # Use OneNote
+                return self.onenote.create_transcription_note(
+                    transcription=transcription,
+                    summary=summary,
+                    title=title,
+                    metadata=metadata
+                )
+            elif self.local_notes:
+                # Use local notes
+                return bool(self.local_notes.create_note(
+                    title=title,
+                    transcription=transcription,
+                    summary=summary,
+                    metadata=metadata
+                ))
+            else:
+                return False
 
         except Exception as e:
-            print(f"❌ OneNote creation failed: {e}")
+            print(f"❌ Failed to create note: {e}")
             return False
 
     def _get_audio_metadata(self, audio_file: str) -> Dict[str, Any]:
@@ -365,6 +402,9 @@ def main():
     parser.add_argument('--onenote-client-secret', help='Azure app client secret')
     parser.add_argument('--summarizer-model', default='medium', choices=['small', 'medium', 'large'],
                        help='Summarization model size')
+    parser.add_argument('--note-storage', default='auto', choices=['auto', 'onenote', 'local'],
+                       help='Note storage method (auto=prefer OneNote, fallback to local)')
+    parser.add_argument('--local-notes-dir', help='Directory for local notes (default: ~/tts_ai_notes)')
 
     args = parser.parse_args()
 
@@ -375,8 +415,15 @@ def main():
             onenote_client_id=args.onenote_client_id,
             onenote_tenant_id=args.onenote_tenant_id,
             onenote_client_secret=args.onenote_client_secret,
-            summarizer_model=args.summarizer_model
+            summarizer_model=args.summarizer_model,
+            note_storage=args.note_storage
         )
+
+        # Configure local notes directory if specified
+        if args.local_notes_dir and hasattr(processor, 'local_notes') and processor.local_notes:
+            # Re-initialize local notes with custom directory
+            from .local_notes import LocalNoteManager
+            processor.local_notes = LocalNoteManager(base_dir=args.local_notes_dir)
 
         # Process audio
         if args.audio_file:
