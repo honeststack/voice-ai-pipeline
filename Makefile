@@ -153,3 +153,17 @@ test-verbose: ## Run tests with detailed output
 	./.venv/bin/pip install -r requirements_test.txt
 	@echo "Running pipeline tests with verbose output..."
 	python3 -u -m tts_ai_pipeline.tests.test_pipeline
+
+# Test microphone functionality
+test-microphone: ## Test microphone recording and ASR transcription
+	@echo "Installing test dependencies..."
+	./.venv/bin/pip install -r requirements_test.txt
+	@echo "Testing microphone functionality..."
+	./.venv/bin/python -m tts_ai_pipeline.microphone --test
+
+# List available audio devices
+list-devices: ## List available microphone devices
+	@echo "Installing test dependencies..."
+	./.venv/bin/pip install -r requirements_test.txt
+	@echo "Listing available audio devices..."
+	./.venv/bin/python -m tts_ai_pipeline.microphone --list-devices

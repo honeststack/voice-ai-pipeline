@@ -6,6 +6,7 @@ This script tests all components of the TTS AI Pipeline:
 - ASR Service (port 8000)
 - TTS Service (port 8001)
 - Interface Service (port 7860)
+- Microphone functionality (if available)
 - Full pipeline integration
 
 Usage:
@@ -14,6 +15,7 @@ Usage:
 Requirements:
     - requests
     - Docker containers running on expected ports
+    - pyaudio (for microphone testing)
 """
 
 import requests
@@ -436,6 +438,48 @@ class PipelineTester:
             self.log_test("Full Pipeline Test", False, f"Pipeline failed: {e}")
             return False
 
+    def test_microphone_setup(self) -> bool:
+        """Test microphone setup and availability."""
+        try:
+            # Try to import microphone module
+            try:
+                from ..microphone import MicrophoneRecorder, PYAUDIO_AVAILABLE
+                if not PYAUDIO_AVAILABLE:
+                    self.log_test("Microphone Setup Test", False, "PyAudio not available - microphone testing skipped")
+                    return False
+            except ImportError:
+                self.log_test("Microphone Setup Test", False, "Microphone module not available (pyaudio not installed)")
+                return False
+
+            recorder = MicrophoneRecorder(ASR_BASE_URL)
+
+            try:
+                # Test device listing
+                devices = recorder.list_devices()
+                if not devices:
+                    self.log_test("Microphone Setup Test", False, "No audio input devices found")
+                    return False
+
+                # Test default device
+                default_device = recorder.get_default_input_device()
+                if default_device is None:
+                    self.log_test("Microphone Setup Test", False, "No default input device available")
+                    return False
+
+                device_info = recorder.audio.get_device_info_by_index(default_device)
+                device_name = device_info.get('name', f'Device {default_device}')
+
+                self.log_test("Microphone Setup Test", True,
+                            f"Found {len(devices)} device(s), using: {device_name}")
+                return True
+
+            finally:
+                recorder.cleanup()
+
+        except Exception as e:
+            self.log_test("Microphone Setup Test", False, f"Microphone setup failed: {e}")
+            return False
+
     def run_all_tests(self):
         """Run all tests."""
         print("🚀 Starting TTS AI Pipeline Testing Suite")
@@ -459,6 +503,12 @@ class PipelineTester:
 
         self.test_tts_synthesis()
         self.test_asr_transcription()
+
+        # Test microphone functionality (optional)
+        print("\n🎤 Testing Microphone Functionality:")
+        print("-" * 38)
+
+        self.test_microphone_setup()
 
         # Test full pipeline
         print("\n🔄 Testing Full Pipeline Integration:")

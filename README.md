@@ -190,7 +190,59 @@ test-pipeline
 The test script will automatically:
 - Start all required Docker containers
 - Run comprehensive tests on all services
+- Test microphone functionality (if available)
 - Stop and clean up containers when done
+
+### Microphone Testing
+
+Test microphone recording and ASR transcription:
+```bash
+make test-microphone
+```
+
+List available audio devices:
+```bash
+make list-devices
+```
+
+Or use the microphone component directly:
+```bash
+# List devices
+python -m tts_ai_pipeline.microphone --list-devices
+
+# Test recording and transcription
+python -m tts_ai_pipeline.microphone --test
+
+# Record to file
+python -m tts_ai_pipeline.microphone --output recording.wav --duration 10
+
+# Interactive recording
+python -m tts_ai_pipeline.microphone
+```
+
+#### Microphone Setup
+
+The microphone component requires PyAudio, which needs system audio libraries:
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install portaudio19-dev python3-pyaudio
+pip install pyaudio
+```
+
+**macOS:**
+```bash
+brew install portaudio
+pip install pyaudio
+```
+
+**Windows:**
+```bash
+pip install pyaudio
+```
+
+If PyAudio is not available, microphone testing will be skipped gracefully.
 
 ### What the Test Script Validates
 

@@ -32,6 +32,7 @@ license = {text = "MIT"}
 optimize-asr = "tts_ai_pipeline.optimize_asr:main"
 optimize-tts = "tts_ai_pipeline.optimize_tts:main"
 test-pipeline = "tts_ai_pipeline.tests.test_pipeline:main"
+microphone = "tts_ai_pipeline.microphone:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
