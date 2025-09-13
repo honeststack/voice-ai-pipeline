@@ -148,3 +148,8 @@ async def info() -> Dict[str, str]:
         Dictionary containing service information.
     """
     return asr_service.get_model_info()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

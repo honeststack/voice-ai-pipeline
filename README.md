@@ -14,6 +14,7 @@ A containerized Text-to-Speech (TTS) AI pipeline with Automatic Speech Recogniti
 - [Installation](#installation)
 - [Quickstart](#quickstart)
 - [Usage](#usage)
+- [Testing](#testing)
 - [Configuration](#configuration)
 - [Optimization](#optimization)
 - [Troubleshooting](#troubleshooting)
@@ -119,9 +120,9 @@ Components communicate via Kubernetes services, with GPU resources allocated as 
    - Click the microphone button, speak, and receive transcribed text and synthesized speech
 
 4. **Test the pipeline**:
-   - Speak a short phrase
-   - Verify transcription appears
-   - Listen to the generated audio output
+   - Use the comprehensive testing script: `make test`
+   - Or run manually: `python -m tts_ai_pipeline.test_pipeline`
+   - The script tests all services and full pipeline integration
 
 ## Usage
 
@@ -166,6 +167,65 @@ python -m tts_ai_pipeline.interface
 ```
 
 Adjust environment variables for local URLs.
+
+## Testing
+
+### Automated Testing
+
+Run the full test suite using Make:
+```bash
+make test
+```
+
+Or run the script as a module:
+```bash
+python -m tts_ai_pipeline.tests.test_pipeline
+```
+
+Or use the installed console script:
+```bash
+test-pipeline
+```
+
+The test script will automatically:
+- Start all required Docker containers
+- Run comprehensive tests on all services
+- Stop and clean up containers when done
+
+### What the Test Script Validates
+
+The testing script (`tts_ai_pipeline/tests/test_pipeline.py`) performs the following tests:
+
+1. **Service Health Checks**:
+   - ASR service health endpoint (`/health`)
+   - TTS service health endpoint (`/health`)
+   - Interface service accessibility
+
+2. **Service Information**:
+   - ASR model and device information (`/info`)
+   - TTS model and device information (`/info`)
+
+3. **Individual Functionality**:
+   - TTS synthesis (text-to-speech conversion)
+   - ASR transcription (speech-to-text conversion)
+
+4. **Full Pipeline Integration**:
+   - End-to-end test: Text → TTS → Audio → ASR → Text
+   - Round-trip accuracy measurement
+
+### Test Requirements
+
+- Docker containers must be running on expected ports
+- Python requests library (`pip install -r requirements_test.txt`)
+- Network connectivity to service endpoints
+
+### Test Output
+
+The script provides detailed output including:
+- ✅/❌ Pass/fail status for each test
+- Performance metrics (file sizes, accuracy percentages)
+- Error messages for failed tests
+- Final summary with pass/fail counts
 
 ## Configuration
 

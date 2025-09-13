@@ -105,17 +105,30 @@ async def synthesize(request: TextRequest) -> FileResponse:
         temp_path = temp_file.name
 
     try:
+        print(f"Starting synthesis to: {temp_path}")
         tts_service.synthesize(request.text, temp_path)
+        
+        # Check if file was created and has content
+        if not os.path.exists(temp_path):
+            raise HTTPException(status_code=500, detail=f"Output file was not created: {temp_path}")
+        
+        file_size = os.path.getsize(temp_path)
+        print(f"Synthesis completed. File size: {file_size} bytes")
+        
+        if file_size == 0:
+            raise HTTPException(status_code=500, detail="Output file is empty")
+        
         return FileResponse(
             temp_path,
             media_type="audio/wav",
             filename="output.wav"
         )
     except Exception as e:
+        print(f"Synthesis error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
     finally:
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
+        # Don't delete the file immediately - let FastAPI handle it
+        pass
 
 
 @app.get("/health")
@@ -136,3 +149,8 @@ async def info() -> Dict[str, str]:
         Dictionary containing service information.
     """
     return tts_service.get_model_info()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)

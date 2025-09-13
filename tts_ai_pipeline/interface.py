@@ -63,7 +63,7 @@ def create_interface() -> gr.Interface:
     """
     return gr.Interface(
         fn=process_audio,
-        inputs=gr.Audio(source="microphone", type="numpy"),
+        inputs=gr.Audio(sources=["microphone"], type="numpy"),
         outputs=[
             gr.Audio(label="Synthesized Speech"),
             gr.Textbox(label="Transcribed Text")

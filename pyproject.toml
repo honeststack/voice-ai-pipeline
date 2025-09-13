@@ -11,9 +11,9 @@ authors = [
 ]
 dependencies = [
     "faster-whisper==1.2.0",
-    "torch==2.8.0",
-    "torchaudio==2.8.0",
-    "torchvision==0.23.0",
+    "torch==2.6.0",
+    "torchaudio==2.6.0",
+    "torchvision==0.21.0",
     "fastapi==0.116.1",
     "uvicorn[standard]==0.35.0",
     "python-multipart==0.0.20",
@@ -31,6 +31,7 @@ license = {text = "MIT"}
 [project.scripts]
 optimize-asr = "tts_ai_pipeline.optimize_asr:main"
 optimize-tts = "tts_ai_pipeline.optimize_tts:main"
+test-pipeline = "tts_ai_pipeline.tests.test_pipeline:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
