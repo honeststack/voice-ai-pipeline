@@ -1,0 +1,8 @@
+TTS==0.14.3
+torch==2.8.0
+torchaudio==2.8.0
+torchvision==0.23.0
+--index-url https://download.pytorch.org/whl/cu118
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+pydantic==2.11.9
