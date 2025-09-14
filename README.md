@@ -17,6 +17,8 @@ A containerized Text-to-Speech (TTS) AI pipeline with Automatic Speech Recogniti
 - [Testing](#testing)
 - [Configuration](#configuration)
 - [Optimization](#optimization)
+- [Copilot MCP Integration](#copilot-mcp-integration)
+- [Auto-Note Feature](#auto-note-feature)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
@@ -36,6 +38,7 @@ Ideal for applications requiring offline speech processing, such as voice assist
 - **Web Interface**: Gradio-based UI with microphone input support
 - **Auto-Note Creation**: Automatically transcribe, summarize, and create notes in Microsoft OneNote
 - **Single-Container Deployment**: All services consolidated into one optimized container with parallel execution
+- **Copilot MCP Integration**: Send voice transcriptions to Copilot for AI-powered responses
 - **Kubernetes Orchestration**: Managed deployment with GPU resource allocation
 - **Configurable Models**: Top-level configuration for selecting AI models
 - **GPU Acceleration**: Optimized for NVIDIA GPUs with CUDA support
@@ -184,17 +187,40 @@ Adjust environment variables for local URLs.
 
 ### Automated Testing
 
-Run the full test suite using Make:
+
+#### Pytest Usage (Recommended)
+
+You can run **all tests** using [pytest](https://docs.pytest.org/):
+
+```bash
+pytest voice_ai_pipeline/tests/ -v
+```
+
+This will automatically discover and run:
+- Pipeline tests (`test_pipeline.py`)
+- Kubernetes tests (`test_k8s.py`)
+- MCP integration tests (`test_mcp.py`)
+
+**Requirements:**
+- Install test dependencies: `pip install -r requirements_test.txt`
+- For Kubernetes and MCP tests, ensure services are running or endpoints are available (see below)
+
+#### Makefile and Script-based Testing
+
+You can still use the Makefile or run scripts directly:
+
 ```bash
 make test
 ```
 
-Or run the script as a module:
+Or run the pipeline test as a module:
+
 ```bash
 python -m voice_ai_pipeline.tests.test_pipeline
 ```
 
 Or use the installed console script:
+
 ```bash
 test-pipeline
 ```
@@ -480,6 +506,8 @@ resources:
 | `USE_GPU` | "true" | Enable GPU acceleration |
 | `ASR_URL` | "http://localhost:8000/transcribe" | ASR service endpoint |
 | `TTS_URL` | "http://localhost:8001/synthesize" | TTS service endpoint |
+| `MCP_ENABLED` | "false" | Enable MCP integration with Copilot |
+| `COPILOT_MCP_URL` | "http://localhost:3000/mcp" | MCP server endpoint for Copilot |
 
 ## Optimization
 
@@ -565,142 +593,115 @@ curl http://voice-ai-service:7860/health  # Interface
 - Ensure all prerequisites are met
 - Provide detailed error logs when reporting issues
 
-## Auto-Note Feature
+## Copilot MCP Integration
 
-The Auto-Note feature automatically transcribes audio, summarizes the content, and creates structured notes in Microsoft OneNote.
+The pipeline includes Model Context Protocol (MCP) integration that allows voice transcriptions to be sent directly to Copilot for AI-powered responses. This enables voice-driven AI interactions where you can speak naturally and receive intelligent responses.
 
 ### Features
 
-- **Automatic Transcription**: Uses the ASR service to transcribe audio files or live recordings
-- **Intelligent Summarization**: Generates concise summaries using transformer-based models
-- **OneNote Integration**: Creates beautifully formatted notes with transcription and summary
-- **Flexible Input**: Process existing audio files or record live audio
-- **Metadata Tracking**: Includes audio file metadata (duration, size, timestamp)
+- **Voice-to-Copilot**: Convert speech transcriptions into structured prompts for Copilot
+- **Smart Prompt Formatting**: Automatically detect question types and format prompts appropriately
+- **Session Management**: Maintain conversation context across interactions
+- **Error Handling**: Graceful fallback when MCP services are unavailable
+- **Configurable Endpoints**: Flexible MCP server configuration
 
 ### Setup
 
-#### Option 1: Local Notes (No Azure Required)
+#### Environment Variables
 
-For WSL2 or local development without Azure:
-
-```bash
-# Install basic dependencies
-pip install -r requirements_test.txt
-
-# Use local note storage (no Azure setup needed)
-python -m voice_ai_pipeline.auto_note --audio-file recording.wav --note-storage local
-```
-
-#### Option 2: Microsoft OneNote (Requires Azure)
-
-1. **Register an app in Azure AD**:
-   - Go to [Azure Portal](https://portal.azure.com)
-   - Navigate to "Azure Active Directory" > "App registrations"
-   - Click "New registration"
-   - Name your app (e.g., "TTS AI Pipeline")
-   - Set redirect URI type to "Web" with value `http://localhost`
-
-2. **Add OneNote permissions**:
-   - In your app registration, go to "API permissions"
-   - Click "Add a permission" > "Microsoft Graph"
-   - Add these delegated permissions:
-     - `Notes.ReadWrite` - Read and write OneNote notebooks
-     - `Notes.ReadWrite.All` - Read and write all OneNote notebooks
-
-3. **Get credentials**:
-   - Note your "Application (client) ID"
-   - Note your "Directory (tenant) ID"
-   - Create a client secret in "Certificates & secrets"
-
-4. **Set environment variables**:
+Set the following environment variables to enable MCP integration:
 
 ```bash
-export AZURE_CLIENT_ID="your-client-id"
-export AZURE_TENANT_ID="your-tenant-id"
-export AZURE_CLIENT_SECRET="your-client-secret"
+export MCP_ENABLED="true"
+export COPILOT_MCP_URL="http://localhost:3000/mcp"
 ```
+
+#### MCP Server Requirements
+
+The MCP integration requires a running MCP server that can communicate with Copilot. The server should:
+
+- Accept JSON-RPC 2.0 requests
+- Support the `copilot/chat` method
+- Handle conversation context
+- Return structured responses
 
 ### Usage
 
-#### Process Audio File
+#### Web Interface
 
-```bash
-# Local notes (no Azure setup required)
-python -m voice_ai_pipeline.auto_note --audio-file recording.wav --note-storage local
+1. Open the Gradio interface
+2. Check the "Send to Copilot (MCP)" checkbox
+3. Speak into the microphone
+4. The transcription will be sent to Copilot and the response will be displayed alongside the transcribed text
 
-# OneNote (requires Azure setup)
-python -m voice_ai_pipeline.auto_note --audio-file recording.wav --note-storage onenote
+#### Programmatic Usage
 
-# Auto mode (prefers OneNote, falls back to local)
-python -m voice_ai_pipeline.auto_note --audio-file recording.wav --note-storage auto
+```python
+from voice_ai_pipeline.mcp_client import MCPClient, create_copilot_prompt
 
-# With custom title
-python -m voice_ai_pipeline.auto_note --audio-file recording.wav --title "Meeting Notes"
+# Create MCP client
+client = MCPClient()
 
-# Skip note creation (just transcribe and summarize)
-python -m voice_ai_pipeline.auto_note --audio-file recording.wav --no-note
+# Convert transcription to Copilot prompt
+transcription = "Can you help me write a Python function?"
+prompt = client.create_prompt_from_transcription(transcription)
+
+# Send to Copilot
+response = client.send_to_copilot(prompt)
+print(response['result'])
+
+# Or use convenience function
+response = create_copilot_prompt(transcription)
 ```
 
-#### Live Recording
+### Configuration Options
 
-```bash
-# Record live audio with local storage
-python -m voice_ai_pipeline.auto_note --record --duration 30 --note-storage local
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MCP_ENABLED` | "false" | Enable MCP integration |
+| `COPILOT_MCP_URL` | "http://localhost:3000/mcp" | MCP server endpoint |
+| `MCP_TIMEOUT` | "30" | Request timeout in seconds |
+| `MCP_MAX_RETRIES` | "3" | Maximum retry attempts |
 
-# Record with OneNote
-python -m voice_ai_pipeline.auto_note --record --duration 60 --note-storage onenote
+### Prompt Types
 
-# Record with custom settings
-python -m voice_ai_pipeline.auto_note --record --duration 60 --title "Interview Notes"
+The MCP client automatically detects and formats different types of prompts:
+
+- **Questions**: "What is Python?", "How do I..."
+- **Commands**: "Please create a function for..."
+- **Code Requests**: "Write a script that..."
+- **General**: All other types of input
+
+### Session Management
+
+The MCP client maintains conversation context:
+
+```python
+# Get current session info
+session = client.get_session_info()
+
+# Clear session context
+client.clear_session()
 ```
 
-#### Advanced Configuration
+### Error Handling
 
-```bash
-# Use different summarization model
-python -m voice_ai_pipeline.auto_note --audio-file recording.wav --summarizer-model large
+The integration includes comprehensive error handling:
 
-# Specify ASR service URL
-python -m voice_ai_pipeline.auto_note --audio-file recording.wav --asr-url http://localhost:8000
+- Network connectivity issues
+- MCP server unavailability
+- Invalid responses
+- Timeout handling with retry logic
 
-# Custom local notes directory
-python -m voice_ai_pipeline.auto_note --audio-file recording.wav --note-storage local --local-notes-dir ~/my_notes
-
-# Pass Azure credentials directly
-python -m voice_ai_pipeline.auto_note \
-  --audio-file recording.wav \
-  --note-storage onenote \
-  --onenote-client-id "your-client-id" \
-  --onenote-tenant-id "your-tenant-id" \
-  --onenote-client-secret "your-client-secret"
-```
-
-### OneNote Structure
-
-The feature creates a structured notebook hierarchy:
-
-```
-📓 AI Transcriptions (Notebook)
-└── 📑 Transcriptions (Section)
-    ├── 📝 AI Note 20241201_143022
-    ├── 📝 Meeting Notes 20241201_150000
-    └── 📝 Interview Notes 20241201_160000
-```
-
-Each note includes:
-- **Title**: Custom or auto-generated timestamp
-- **Summary**: AI-generated summary of the transcription
-- **Full Transcription**: Complete transcribed text
-- **Metadata**: Audio file details (duration, size, creation time)
+If MCP fails, the pipeline continues to function normally with ASR and TTS only.
 
 ### Dependencies
 
-- **Microsoft Graph SDK**: For OneNote API integration (optional)
-- **Transformers**: For text summarization (BART/T5 models)
-- **Azure Identity**: For Microsoft authentication (optional)
-- **PyAudio**: For microphone recording (optional)
+MCP integration requires:
+- `requests` (already included)
+- Python 3.8+ for type hints
 
-**Note**: Only transformers is required for basic functionality. Microsoft Graph SDK and Azure Identity are only needed for OneNote integration.
+No additional packages are required as the MCP client uses standard library features.
 
 ### Troubleshooting
 

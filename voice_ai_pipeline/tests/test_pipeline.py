@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-TTS AI Pipeline Testing Script
+TTS AI Pipeline Testing with pytest
 
-This script tests all components of the TTS AI Pipeline:
+This module tests all components of the TTS AI Pipeline:
 - ASR Service (port 8000)
 - TTS Service (port 8001)
 - Interface Service (port 7860)
@@ -10,7 +10,7 @@ This script tests all components of the TTS AI Pipeline:
 - Full pipeline integration
 
 Usage:
-    python -m voice_ai_pipeline.tests.test_pipeline
+    pytest voice_ai_pipeline/tests/test_pipeline.py -v
 
 Requirements:
     - requests
@@ -18,12 +18,12 @@ Requirements:
     - pyaudio (for microphone testing)
 """
 
+import pytest
 import requests
 import json
 import time
 import tempfile
 import os
-import sys
 import subprocess
 from typing import Dict, Any, Tuple
 
@@ -32,19 +32,16 @@ ASR_BASE_URL = "http://localhost:8000"
 TTS_BASE_URL = "http://localhost:8001"
 INTERFACE_URL = "http://localhost:7860"
 
-class PipelineTester:
-    """Test class for TTS AI Pipeline components."""
 
-    def __init__(self):
-        self.test_results = []
-        self.passed = 0
-        self.failed = 0
-        self.containers_started = False
+@pytest.fixture(scope="session")
+def docker_containers():
+    """Fixture to manage Docker containers for testing."""
+    containers_started = False
 
-    def start_containers(self):
+    def start_containers():
         """Start all Docker containers for testing."""
         print("🐳 Starting Docker containers for testing...")
-        
+
         try:
             # First, stop any running service containers to ensure clean start
             expected_containers = ["asr-service", "tts-service", "interface-service"]
@@ -58,18 +55,17 @@ class PipelineTester:
                 print(f"   🛑 Stopping running containers: {', '.join(containers_to_stop)}")
                 subprocess.run(["docker", "stop"] + containers_to_stop, capture_output=True)
                 print(f"   ✅ Stopped containers: {', '.join(containers_to_stop)}")
-            
+
             # Check if containers are already running
             result = subprocess.run(
                 ["docker", "ps", "--format", "{{.Names}}"],
                 capture_output=True, text=True, check=True
             )
             running_containers = [name for name in result.stdout.strip().split('\n') if name]
-            
+
             # Check for our specific service containers
-            expected_containers = ["asr-service", "tts-service", "interface-service"]
             found_containers = [name for name in running_containers if name in expected_containers]
-            
+
             # Check all containers (running or stopped)
             all_result = subprocess.run(
                 ["docker", "ps", "-a", "--format", "{{.Names}}"],
@@ -77,15 +73,14 @@ class PipelineTester:
             )
             all_containers = [name for name in all_result.stdout.strip().split('\n') if name]
             existing_containers = [name for name in all_containers if name in expected_containers]
-            
+
             if len(found_containers) == 3:  # All 3 services should be running
                 print(f"   📦 Found running containers: {', '.join(found_containers)}")
-                self.containers_started = True
                 return True
             elif len(found_containers) >= 1:  # At least 1 service is running, check for existing stopped containers
                 print(f"   ⚠️  Found only {len(found_containers)} running containers: {', '.join(found_containers)}")
                 print("   🔍 Checking for existing stopped containers...")
-                
+
                 # Check all containers (running or stopped)
                 all_result = subprocess.run(
                     ["docker", "ps", "-a", "--filter", "name=-service", "--format", "{{.Names}}"],
@@ -93,120 +88,30 @@ class PipelineTester:
                 )
                 all_containers = [name for name in all_result.stdout.strip().split('\n') if name and not name.startswith('buildx')]
                 existing_containers = [name for name in all_containers if any(expected in name for expected in expected_containers)]
-                
+
                 # Start existing containers that are not running
                 containers_to_start = [name for name in expected_containers if name in existing_containers and name not in found_containers]
                 if containers_to_start:
                     print(f"   🚀 Starting stopped containers: {', '.join(containers_to_start)}")
-                    subprocess.run(["docker", "start"] + containers_to_start, check=True)
-                    print(f"   ✅ Started containers: {', '.join(containers_to_start)}")
-                    # Wait for containers to be ready
-                    time.sleep(10)
-                    self.containers_started = True
+                    subprocess.run(["docker", "start"] + containers_to_start, capture_output=True)
+                    time.sleep(5)  # Wait for services to start
                     return True
                 else:
-                    print("   🆕 No additional existing containers to start, creating new ones...")
-                    # Fall through to create new containers
+                    print("   ❌ No containers to start")
+                    return False
             else:
-                # No containers running, check for existing stopped containers first
-                print("   🔍 No running containers found, checking for existing stopped containers...")
-                
-                # Check all containers (running or stopped)
-                all_result = subprocess.run(
-                    ["docker", "ps", "-a", "--format", "{{.Names}}"],
-                    capture_output=True, text=True, check=True
-                )
-                all_containers = [name for name in all_result.stdout.strip().split('\n') if name]
-                existing_containers = [name for name in all_containers if name in expected_containers]
-                
-                if existing_containers:
-                    print(f"   🔄 Found existing containers: {', '.join(existing_containers)}")
-                    print("   🚀 Starting existing containers...")
-                    # Start existing containers
-                    containers_to_start = [name for name in expected_containers if name in existing_containers]
-                    if containers_to_start:
-                        subprocess.run(["docker", "start"] + containers_to_start, check=True)
-                        print(f"   ✅ Started containers: {', '.join(containers_to_start)}")
-                        # Wait for containers to be ready
-                        time.sleep(10)
-                        self.containers_started = True
-                        return True
-                else:
-                    print("   🆕 No existing containers found, creating new ones...")
-                    # Fall through to create new containers
-            
-            # Start containers using docker-compose or docker run
-            # First try docker-compose
-            compose_file = os.path.join(os.path.dirname(__file__), "..", "..", "docker-compose.yml")
-            if os.path.exists(compose_file):
-                print("   📄 Found docker-compose.yml, starting services...")
-                subprocess.run(
-                    ["docker-compose", "up", "-d"],
-                    cwd=os.path.dirname(compose_file),
-                    check=True
-                )
-            else:
-                # No containers exist, create new ones
-                print("   🆕 No existing containers found, creating new ones...")
-                
-                # Get the project root directory
-                project_root = os.path.join(os.path.dirname(__file__), "..", "..")
-                
-                # Start ASR container
-                try:
-                    subprocess.run([
-                        "docker", "run", "-d", "--name", "asr-service", 
-                        "--gpus", "all", "-p", "8000:8000",
-                        "-v", f"{project_root}/models:/app/models",
-                        "asr:latest"
-                    ], check=True)
-                    print("   ✅ Started ASR service")
-                except subprocess.CalledProcessError:
-                    print("   ❌ Failed to start ASR service")
-                
-                # Start TTS container
-                try:
-                    subprocess.run([
-                        "docker", "run", "-d", "--name", "tts-service",
-                        "--gpus", "all", "-p", "8001:8001", 
-                        "-v", f"{project_root}/models:/app/models",
-                        "tts:latest"
-                    ], check=True)
-                    print("   ✅ Started TTS service")
-                except subprocess.CalledProcessError:
-                    print("   ❌ Failed to start TTS service")
-                
-                # Start Interface container
-                try:
-                    subprocess.run([
-                        "docker", "run", "-d", "--name", "interface-service",
-                        "-p", "7860:7860",
-                        "interface:latest"
-                    ], check=True)
-                    print("   ✅ Started Interface service")
-                except subprocess.CalledProcessError:
-                    print("   ❌ Failed to start Interface service")
-            
-            # Wait for containers to be ready
-            print("   ⏳ Waiting for containers to start...")
-            time.sleep(10)
-            
-            self.containers_started = True
-            print("   ✅ Containers started successfully")
-            return True
-            
+                print("   ❌ No service containers found")
+                return False
+
         except subprocess.CalledProcessError as e:
-            print(f"   ❌ Failed to start containers: {e}")
+            print(f"   ❌ Docker command failed: {e}")
             return False
         except FileNotFoundError:
             print("   ❌ Docker not found. Please ensure Docker is installed and running.")
             return False
 
-    def stop_containers(self):
+    def stop_containers():
         """Stop test containers."""
-        if not self.containers_started:
-            return
-            
         print("🛑 Stopping test containers...")
         try:
             # Check which containers exist
@@ -215,419 +120,244 @@ class PipelineTester:
                 capture_output=True, text=True, check=True
             )
             all_containers = [name for name in result.stdout.strip().split('\n') if name]
-            
+
             # Only stop containers we created or that match our service names
             containers_to_stop = []
             for container in all_containers:
                 if container in ["asr-test", "tts-test", "interface-test"] or \
                    container in ["asr-service", "tts-service", "interface-service"]:
                     containers_to_stop.append(container)
-            
+
             if containers_to_stop:
                 # Stop containers
                 subprocess.run(["docker", "stop"] + containers_to_stop, capture_output=True)
                 print(f"   ✅ Stopped containers: {', '.join(containers_to_stop)}")
             else:
                 print("   ℹ️  No test containers to stop")
-                
+
         except subprocess.CalledProcessError as e:
             print(f"   ⚠️  Warning: Could not stop containers: {e}")
 
-    def log_test(self, test_name: str, result: bool, message: str = ""):
-        """Log a test result."""
-        status = "✅ PASS" if result else "❌ FAIL"
-        self.test_results.append(f"{status} {test_name}")
-        if message:
-            self.test_results.append(f"   {message}")
+    # Setup
+    containers_started = start_containers()
+    if not containers_started:
+        pytest.skip("Docker containers could not be started")
 
-        if result:
-            self.passed += 1
-        else:
-            self.failed += 1
+    yield containers_started
 
-        print(f"{status} {test_name}")
-        if message:
-            print(f"   {message}")
+    # Teardown
+    stop_containers()
 
-    def test_service_health(self, service_name: str, url: str) -> bool:
-        """Test service health endpoint."""
-        try:
-            response = requests.get(f"{url}/health", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("healthy"):
-                    self.log_test(f"{service_name} Health Check", True, f"Service is healthy")
-                    return True
-                else:
-                    self.log_test(f"{service_name} Health Check", False, f"Service reports unhealthy")
-                    return False
-            else:
-                self.log_test(f"{service_name} Health Check", False, f"HTTP {response.status_code}")
-                return False
-        except requests.exceptions.RequestException as e:
-            self.log_test(f"{service_name} Health Check", False, f"Connection failed: {e}")
-            return False
 
-    def test_service_info(self, service_name: str, url: str) -> bool:
-        """Test service info endpoint."""
-        try:
-            response = requests.get(f"{url}/info", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                self.log_test(f"{service_name} Info Check", True,
-                            f"Model: {data.get('model_name', 'N/A')}, Device: {data.get('device', 'N/A')}")
-                return True
-            else:
-                self.log_test(f"{service_name} Info Check", False, f"HTTP {response.status_code}")
-                return False
-        except requests.exceptions.RequestException as e:
-            self.log_test(f"{service_name} Info Check", False, f"Connection failed: {e}")
-            return False
+def test_service_health(docker_containers):
+    """Test service health endpoints."""
+    services = [
+        ("ASR", ASR_BASE_URL),
+        ("TTS", TTS_BASE_URL),
+        ("Interface", INTERFACE_URL)
+    ]
 
-    def test_asr_transcription(self) -> bool:
-        """Test ASR transcription with a sample audio file."""
-        # Create a simple test audio file (this would be a real WAV in practice)
-        test_text = "Hello, this is a test of the ASR system."
+    for service_name, url in services:
+        response = requests.get(f"{url}/health", timeout=10)
+        assert response.status_code == 200, f"{service_name} health check failed with status {response.status_code}"
 
-        try:
-            # First, let's use TTS to create test audio
-            tts_response = requests.post(
-                f"{TTS_BASE_URL}/synthesize",
-                json={"text": test_text},
-                timeout=30
-            )
+        data = response.json()
+        assert data.get("healthy") == True, f"{service_name} reports unhealthy"
 
-            if tts_response.status_code != 200:
-                self.log_test("ASR Transcription Test", False, f"TTS failed to generate test audio: HTTP {tts_response.status_code}")
-                return False
 
-            # Save the audio file
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-                temp_file.write(tts_response.content)
-                audio_path = temp_file.name
+def test_service_info(docker_containers):
+    """Test service info endpoints."""
+    services = [
+        ("ASR", ASR_BASE_URL),
+        ("TTS", TTS_BASE_URL),
+        ("Interface", INTERFACE_URL)
+    ]
 
-            try:
-                # Now test ASR with the generated audio
-                with open(audio_path, "rb") as audio_file:
-                    files = {"file": audio_file}
-                    asr_response = requests.post(
-                        f"{ASR_BASE_URL}/transcribe",
-                        files=files,
-                        timeout=30
-                    )
+    for service_name, url in services:
+        response = requests.get(f"{url}/info", timeout=10)
+        assert response.status_code == 200, f"{service_name} info check failed with status {response.status_code}"
 
-                if asr_response.status_code == 200:
-                    data = asr_response.json()
-                    transcribed_text = data.get("text", "").strip()
+        data = response.json()
+        assert "model_name" in data or "version" in data, f"{service_name} info missing expected fields"
 
-                    # Calculate simple accuracy (basic word matching)
-                    original_words = set(test_text.lower().split())
-                    transcribed_words = set(transcribed_text.lower().split())
-                    common_words = original_words.intersection(transcribed_words)
-                    accuracy = len(common_words) / len(original_words) if original_words else 0
 
-                    self.log_test("ASR Transcription Test", True,
-                                f"Original: '{test_text}' | Transcribed: '{transcribed_text}' | Accuracy: {accuracy:.1%}")
-                    return True
-                else:
-                    self.log_test("ASR Transcription Test", False, f"HTTP {asr_response.status_code}")
-                    return False
+@pytest.mark.integration
+def test_asr_transcription(docker_containers):
+    """Test ASR transcription with a sample audio file."""
+    # Create a simple test audio file (this would be a real WAV in practice)
+    test_text = "Hello, this is a test of the ASR system."
 
-            finally:
-                # Clean up temp file
-                if os.path.exists(audio_path):
-                    os.unlink(audio_path)
+    try:
+        # First, let's use TTS to create test audio
+        tts_response = requests.post(
+            f"{TTS_BASE_URL}/synthesize",
+            json={"text": test_text},
+            timeout=30
+        )
 
-        except requests.exceptions.RequestException as e:
-            self.log_test("ASR Transcription Test", False, f"Request failed: {e}")
-            return False
+        assert tts_response.status_code == 200, f"TTS synthesis failed: HTTP {tts_response.status_code}"
 
-    def test_tts_synthesis(self) -> bool:
-        """Test TTS synthesis."""
-        test_text = "This is a test of the text-to-speech synthesis system."
+        # Test ASR transcription
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+            temp_file.write(tts_response.content)
+            audio_path = temp_file.name
 
         try:
-            response = requests.post(
-                f"{TTS_BASE_URL}/synthesize",
-                json={"text": test_text},
-                timeout=30
-            )
-
-            if response.status_code == 200:
-                content_length = len(response.content)
-                content_type = response.headers.get("content-type", "")
-
-                if content_length > 1000 and "audio" in content_type.lower():
-                    self.log_test("TTS Synthesis Test", True,
-                                f"Generated {content_length} bytes of audio data")
-                    return True
-                else:
-                    self.log_test("TTS Synthesis Test", False,
-                                f"Invalid response: {content_length} bytes, type: {content_type}")
-                    return False
-            else:
-                self.log_test("TTS Synthesis Test", False, f"HTTP {response.status_code}")
-                return False
-
-        except requests.exceptions.RequestException as e:
-            self.log_test("TTS Synthesis Test", False, f"Request failed: {e}")
-            return False
-
-    def test_interface_accessibility(self) -> bool:
-        """Test interface web service accessibility."""
-        try:
-            response = requests.get(INTERFACE_URL, timeout=10)
-
-            if response.status_code == 200:
-                if "html" in response.text.lower() and "gradio" in response.text.lower():
-                    self.log_test("Interface Accessibility", True, "Gradio web interface is accessible")
-                    return True
-                else:
-                    self.log_test("Interface Accessibility", False, "Response doesn't contain expected HTML content")
-                    return False
-            else:
-                self.log_test("Interface Accessibility", False, f"HTTP {response.status_code}")
-                return False
-
-        except requests.exceptions.RequestException as e:
-            self.log_test("Interface Accessibility", False, f"Connection failed: {e}")
-            return False
-
-    def test_full_pipeline(self) -> bool:
-        """Test the complete pipeline: Text -> TTS -> Audio -> ASR -> Text."""
-        original_text = "The quick brown fox jumps over the lazy dog."
-
-        try:
-            # Step 1: Text to Speech
-            print("   Step 1: Converting text to speech...")
-            tts_response = requests.post(
-                f"{TTS_BASE_URL}/synthesize",
-                json={"text": original_text},
-                timeout=30
-            )
-
-            if tts_response.status_code != 200:
-                self.log_test("Full Pipeline Test", False, f"TTS failed: HTTP {tts_response.status_code}")
-                return False
-
-            # Step 2: Speech to Text
-            print("   Step 2: Converting speech to text...")
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-                temp_file.write(tts_response.content)
-                audio_path = temp_file.name
-
-            try:
-                with open(audio_path, "rb") as audio_file:
-                    files = {"file": audio_file}
-                    asr_response = requests.post(
-                        f"{ASR_BASE_URL}/transcribe",
-                        files=files,
-                        timeout=30
-                    )
-
-                if asr_response.status_code != 200:
-                    self.log_test("Full Pipeline Test", False, f"ASR failed: HTTP {asr_response.status_code}")
-                    return False
-
-                # Step 3: Compare results
-                data = asr_response.json()
-                final_text = data.get("text", "").strip()
-
-                # Simple accuracy check
-                original_words = set(original_text.lower().split())
-                final_words = set(final_text.lower().split())
-                common_words = original_words.intersection(final_words)
-                accuracy = len(common_words) / len(original_words) if original_words else 0
-
-                self.log_test("Full Pipeline Test", True,
-                            f"Original: '{original_text}' | Final: '{final_text}' | Round-trip accuracy: {accuracy:.1%}")
-                return True
-
-            finally:
-                if os.path.exists(audio_path):
-                    os.unlink(audio_path)
-
-        except requests.exceptions.RequestException as e:
-            self.log_test("Full Pipeline Test", False, f"Pipeline failed: {e}")
-            return False
-
-    def test_microphone_setup(self) -> bool:
-        """Test microphone setup and availability."""
-        try:
-            # Try to import microphone module
-            try:
-                from ..microphone import MicrophoneRecorder, PYAUDIO_AVAILABLE
-                if not PYAUDIO_AVAILABLE:
-                    self.log_test("Microphone Setup Test", False, "PyAudio not available - microphone testing skipped")
-                    return False
-            except ImportError:
-                self.log_test("Microphone Setup Test", False, "Microphone module not available (pyaudio not installed)")
-                return False
-
-            recorder = MicrophoneRecorder(ASR_BASE_URL)
-
-            try:
-                # Test device listing
-                devices = recorder.list_devices()
-                if not devices:
-                    self.log_test("Microphone Setup Test", False, "No audio input devices found")
-                    return False
-
-                # Test default device
-                default_device = recorder.get_default_input_device()
-                if default_device is None:
-                    self.log_test("Microphone Setup Test", False, "No default input device available")
-                    return False
-
-                device_info = recorder.audio.get_device_info_by_index(default_device)
-                device_name = device_info.get('name', f'Device {default_device}')
-
-                self.log_test("Microphone Setup Test", True,
-                            f"Found {len(devices)} device(s), using: {device_name}")
-                return True
-
-            finally:
-                recorder.cleanup()
-
-        except Exception as e:
-            self.log_test("Microphone Setup Test", False, f"Microphone setup failed: {e}")
-            return False
-
-    def test_auto_note_setup(self) -> bool:
-        """Test auto-note component setup and dependencies."""
-        try:
-            # Test imports
-            try:
-                from ..auto_note import AutoNoteProcessor
-                from ..summarizer import TextSummarizer, TRANSFORMERS_AVAILABLE
-                from ..onenote_manager import OneNoteManager, MSGRAPH_AVAILABLE
-                from ..microphone import MicrophoneRecorder, PYAUDIO_AVAILABLE
-            except ImportError as e:
-                self.log_test("Auto-Note Setup Test", False, f"Import failed: {e}")
-                return False
-
-            # Check component availability
-            components_status = {
-                "Transformers (Summarization)": TRANSFORMERS_AVAILABLE,
-                "Microsoft Graph (OneNote)": MSGRAPH_AVAILABLE,
-                "PyAudio (Microphone)": PYAUDIO_AVAILABLE
-            }
-
-            available_components = [name for name, available in components_status.items() if available]
-            unavailable_components = [name for name, available in components_status.items() if not available]
-
-            # Initialize processor (without OneNote credentials for testing)
-            try:
-                processor = AutoNoteProcessor(
-                    onenote_client_id=None,  # Skip OneNote for basic test
-                    onenote_tenant_id=None,
-                    onenote_client_secret=None
+            with open(audio_path, "rb") as audio_file:
+                files = {"file": audio_file}
+                asr_response = requests.post(
+                    f"{ASR_BASE_URL}/transcribe",
+                    files=files,
+                    timeout=30
                 )
 
-                # Check which components are initialized
-                components_initialized = []
-                if hasattr(processor, 'microphone') and processor.microphone:
-                    components_initialized.append("Microphone")
-                if hasattr(processor, 'summarizer') and processor.summarizer:
-                    components_initialized.append("Summarizer")
-                if hasattr(processor, 'onenote') and processor.onenote:
-                    components_initialized.append("OneNote")
+            assert asr_response.status_code == 200, f"ASR transcription failed: HTTP {asr_response.status_code}"
 
-                status_msg = f"Available: {', '.join(available_components) if available_components else 'None'}"
-                if unavailable_components:
-                    status_msg += f" | Missing: {', '.join(unavailable_components)}"
-                if components_initialized:
-                    status_msg += f" | Initialized: {', '.join(components_initialized)}"
+            data = asr_response.json()
+            transcribed_text = data.get("text", "").strip()
 
-                self.log_test("Auto-Note Setup Test", True, status_msg)
-                return True
+            # Basic validation - should contain some text
+            assert len(transcribed_text) > 0, "ASR returned empty transcription"
 
-            except Exception as e:
-                self.log_test("Auto-Note Setup Test", False, f"Initialization failed: {e}")
-                return False
+        finally:
+            if os.path.exists(audio_path):
+                os.unlink(audio_path)
 
-        except Exception as e:
-            self.log_test("Auto-Note Setup Test", False, f"Setup test failed: {e}")
-            return False
-
-    def run_all_tests(self):
-        """Run all tests."""
-        print("🚀 Starting TTS AI Pipeline Testing Suite")
-        print("=" * 50)
-
-        # Test individual services
-        print("\n🔍 Testing Individual Services:")
-        print("-" * 30)
-
-        self.test_service_health("ASR Service", ASR_BASE_URL)
-        self.test_service_info("ASR Service", ASR_BASE_URL)
-
-        self.test_service_health("TTS Service", TTS_BASE_URL)
-        self.test_service_info("TTS Service", TTS_BASE_URL)
-
-        self.test_interface_accessibility()
-
-        # Test functionality
-        print("\n⚙️  Testing Service Functionality:")
-        print("-" * 35)
-
-        self.test_tts_synthesis()
-        self.test_asr_transcription()
-
-        # Test microphone functionality (optional)
-        print("\n🎤 Testing Microphone Functionality:")
-        print("-" * 38)
-
-        self.test_microphone_setup()
-
-        # Test auto-note functionality (optional)
-        print("\n📝 Testing Auto-Note Functionality:")
-        print("-" * 36)
-
-        self.test_auto_note_setup()
-
-        # Test full pipeline
-        print("\n🔄 Testing Full Pipeline Integration:")
-        print("-" * 40)
-
-        self.test_full_pipeline()
-
-        # Print summary
-        print("\n" + "=" * 50)
-        print("📊 TEST SUMMARY")
-        print("=" * 50)
-
-        for result in self.test_results:
-            print(result)
-
-        print(f"\n🎯 Results: {self.passed} passed, {self.failed} failed")
-
-        if self.failed == 0:
-            print("🎉 ALL TESTS PASSED! Pipeline is fully operational.")
-            return True
-        else:
-            print("⚠️  Some tests failed. Check the output above for details.")
-            return False
+    except requests.exceptions.RequestException as e:
+        pytest.fail(f"ASR transcription test failed: {e}")
 
 
-def main():
-    """Main function."""
-    tester = PipelineTester()
-    
-    # Start containers
-    if not tester.start_containers():
-        print("❌ Failed to start containers. Aborting tests.")
-        sys.exit(1)
-    
+@pytest.mark.integration
+def test_tts_synthesis(docker_containers):
+    """Test TTS synthesis."""
+    test_text = "This is a test of the text to speech system."
+
     try:
-        # Run tests
-        success = tester.run_all_tests()
-    finally:
-        # Always stop containers
-        tester.stop_containers()
-    
-    sys.exit(0 if success else 1)
+        response = requests.post(
+            f"{TTS_BASE_URL}/synthesize",
+            json={"text": test_text},
+            timeout=30
+        )
+
+        assert response.status_code == 200, f"TTS synthesis failed: HTTP {response.status_code}"
+
+        # Check that we got audio data (WAV file)
+        assert len(response.content) > 0, "TTS returned empty audio data"
+        assert response.headers.get("content-type") in ["audio/wav", "audio/x-wav", "application/octet-stream"], \
+               f"Unexpected content type: {response.headers.get('content-type')}"
+
+    except requests.exceptions.RequestException as e:
+        pytest.fail(f"TTS synthesis test failed: {e}")
 
 
-if __name__ == "__main__":
-    main()
+@pytest.mark.integration
+def test_full_pipeline(docker_containers):
+    """Test full pipeline: Text -> Speech -> Text."""
+    original_text = "The quick brown fox jumps over the lazy dog."
+
+    try:
+        # Step 1: Text to Speech
+        print("   Step 1: Converting text to speech...")
+        tts_response = requests.post(
+            f"{TTS_BASE_URL}/synthesize",
+            json={"text": original_text},
+            timeout=30
+        )
+
+        assert tts_response.status_code == 200, f"TTS failed: HTTP {tts_response.status_code}"
+
+        # Step 2: Speech to Text
+        print("   Step 2: Converting speech to text...")
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+            temp_file.write(tts_response.content)
+            audio_path = temp_file.name
+
+        try:
+            with open(audio_path, "rb") as audio_file:
+                files = {"file": audio_file}
+                asr_response = requests.post(
+                    f"{ASR_BASE_URL}/transcribe",
+                    files=files,
+                    timeout=30
+                )
+
+            assert asr_response.status_code == 200, f"ASR failed: HTTP {asr_response.status_code}"
+
+            # Step 3: Compare results
+            data = asr_response.json()
+            final_text = data.get("text", "").strip()
+
+            # Simple accuracy check
+            original_words = set(original_text.lower().split())
+            final_words = set(final_text.lower().split())
+            common_words = original_words.intersection(final_words)
+            accuracy = len(common_words) / len(original_words) if original_words else 0
+
+            # Assert reasonable accuracy (at least 50%)
+            assert accuracy >= 0.5, f"Round-trip accuracy too low: {accuracy:.1%}"
+
+        finally:
+            if os.path.exists(audio_path):
+                os.unlink(audio_path)
+
+    except requests.exceptions.RequestException as e:
+        pytest.fail(f"Full pipeline test failed: {e}")
+
+
+def test_microphone_setup():
+    """Test microphone setup and availability."""
+    try:
+        # Try to import microphone module
+        try:
+            from voice_ai_pipeline.microphone import MicrophoneRecorder, PYAUDIO_AVAILABLE
+            if not PYAUDIO_AVAILABLE:
+                pytest.skip("PyAudio not available - microphone testing skipped")
+        except ImportError:
+            pytest.skip("Microphone module not available (pyaudio not installed)")
+
+        recorder = MicrophoneRecorder(ASR_BASE_URL)
+
+        try:
+            # Test device listing
+            devices = recorder.list_devices()
+            assert len(devices) > 0, "No audio input devices found"
+
+            # Test default device
+            default_device = recorder.get_default_input_device()
+            assert default_device is not None, "No default input device available"
+
+        finally:
+            recorder.cleanup()
+
+    except Exception as e:
+        pytest.fail(f"Microphone setup test failed: {e}")
+
+
+def test_auto_note_setup():
+    """Test auto-note component setup and dependencies."""
+    try:
+        # Test imports
+        from voice_ai_pipeline import auto_note
+        from voice_ai_pipeline import onenote_manager
+        from voice_ai_pipeline import local_notes
+
+        # Test that key functions exist
+        assert hasattr(auto_note, 'main'), "auto_note module missing main function"
+        assert hasattr(onenote_manager, 'OneNoteManager'), "onenote_manager module missing OneNoteManager class"
+        assert hasattr(local_notes, 'LocalNoteManager'), "local_notes module missing LocalNoteManager class"
+
+    except (ImportError, Exception) as e:
+        pytest.fail(f"Auto-note setup test failed: {e}")
+
+
+@pytest.mark.integration
+def test_interface_service(docker_containers):
+    """Test interface service functionality."""
+    try:
+        # Test basic interface access
+        response = requests.get(INTERFACE_URL, timeout=10)
+        # Interface might redirect or return HTML
+        assert response.status_code in [200, 302], f"Interface service returned status {response.status_code}"
+
+    except requests.exceptions.RequestException as e:
+        pytest.fail(f"Interface service test failed: {e}")

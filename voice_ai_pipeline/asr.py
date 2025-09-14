@@ -5,6 +5,7 @@ from typing import Dict, List
 from faster_whisper import WhisperModel
 from fastapi import FastAPI, UploadFile, HTTPException
 import tempfile
+import torch
 
 
 class ASR:
@@ -14,18 +15,29 @@ class ASR:
     audio files to text.
     """
 
-    def __init__(self, model_name: str = "small", use_gpu: bool = True) -> None:
+    def __init__(self, model_name: str = "small", use_gpu: bool | None = None) -> None:
         """Initialize the ASR service.
 
         Args:
             model_name: The name/size of the Whisper model to use.
                 Options: "tiny", "base", "small", "medium", "large".
-            use_gpu: Whether to use GPU acceleration if available.
+            use_gpu: Whether to use GPU acceleration. If None, auto-detect GPU availability.
         """
         self.model_name = model_name
-        self.use_gpu = use_gpu
+        self.use_gpu = use_gpu if use_gpu is not None else self._detect_gpu()
         self.model: WhisperModel | None = None
         self.load_model()
+
+    def _detect_gpu(self) -> bool:
+        """Detect if GPU is available for acceleration.
+
+        Returns:
+            True if GPU is available and should be used, False otherwise.
+        """
+        try:
+            return torch.cuda.is_available() and torch.cuda.device_count() > 0
+        except Exception:
+            return False
 
     def load_model(self) -> None:
         """Load the Whisper model into memory.
@@ -35,13 +47,32 @@ class ASR:
         """
         try:
             device = "cuda" if self.use_gpu else "cpu"
+            compute_type = "float16" if self.use_gpu else "int8"
+
+            print(f"Loading ASR model '{self.model_name}' on {device} with compute_type={compute_type}")
+
             self.model = WhisperModel(
                 self.model_name,
                 device=device,
-                compute_type="float16"
+                compute_type=compute_type
             )
+            print(f"ASR model loaded successfully on {device}")
         except Exception as e:
-            raise RuntimeError(f"Failed to load ASR model {self.model_name}: {e}")
+            # Try fallback to CPU if GPU failed
+            if self.use_gpu:
+                print(f"GPU loading failed ({e}), falling back to CPU...")
+                self.use_gpu = False
+                try:
+                    self.model = WhisperModel(
+                        self.model_name,
+                        device="cpu",
+                        compute_type="int8"
+                    )
+                    print("ASR model loaded successfully on CPU (fallback)")
+                except Exception as cpu_e:
+                    raise RuntimeError(f"Failed to load ASR model {self.model_name} on both GPU and CPU: GPU error: {e}, CPU error: {cpu_e}")
+            else:
+                raise RuntimeError(f"Failed to load ASR model {self.model_name}: {e}")
 
     def transcribe(self, audio_path: str) -> str:
         """Transcribe an audio file to text.

@@ -16,7 +16,8 @@ spec:
     spec:
       containers:
       - name: voice-ai
-        image: asr:latest
+        image: voice-ai-pipeline:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8000
           name: asr
@@ -25,8 +26,6 @@ spec:
         - containerPort: 7860
           name: interface
         resources:
-          limits:
-            nvidia.com/gpu: 1
           requests:
             memory: "4Gi"
             cpu: "1000m"
@@ -42,10 +41,7 @@ spec:
             port: 7860
           initialDelaySeconds: 30
           periodSeconds: 10
-      tolerations:
-      - key: nvidia.com/gpu
-        operator: Exists
-        effect: NoSchedule
+      tolerations: []
 ---
 apiVersion: v1
 kind: Service

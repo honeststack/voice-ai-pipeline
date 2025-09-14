@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Copilot Widget</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .mic-button {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            color: white;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 20px rgba(255, 107, 107, 0.3);
+            margin: 0 auto 20px;
+        }
+
+        .mic-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 12px 30px rgba(255, 107, 107, 0.4);
+        }
+
+        .mic-button.recording {
+            background: linear-gradient(135deg, #ff4757, #ff3838);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .status {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 20px;
+            min-height: 24px;
+        }
+
+        .transcription {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            min-height: 60px;
+            border: 2px solid transparent;
+            transition: border-color 0.3s ease;
+        }
+
+        .transcription.has-text {
+            border-color: #007acc;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #007acc;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .settings {
+            font-size: 12px;
+            color: #666;
+            margin-top: 20px;
+        }
+
+        .settings a {
+            color: #007acc;
+            text-decoration: none;
+        }
+
+        .settings a:hover {
+            text-decoration: underline;
+        }
+
+        .copilot-integration {
+            background: #e3f2fd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            border-left: 4px solid #2196f3;
+        }
+
+        .copilot-integration h3 {
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+
+        .copilot-integration p {
+            color: #424242;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Voice Copilot</h1>
+        <p>Voice-to-text for Copilot integration</p>
+
+        <button id="micButton" class="mic-button">🎤</button>
+
+        <div id="status" class="status">Ready to record</div>
+
+        <div id="transcription" class="transcription">Your transcription will appear here...</div>
+
+        <div class="controls">
+            <button id="copyBtn" class="btn btn-primary">📋 Copy to Clipboard</button>
+            <button id="clearBtn" class="btn btn-secondary">🗑️ Clear</button>
+        </div>
+
+        <div class="copilot-integration">
+            <h3>🚀 Copilot Integration</h3>
+            <p>The transcribed text will be automatically copied to your clipboard. Switch to Copilot and paste (Ctrl+V) to send your voice message!</p>
+        </div>
+
+        <div class="settings">
+            <a href="#" id="settingsLink">⚙️ Settings</a> |
+            <a href="#" id="helpLink">❓ Help</a>
+        </div>
+    </div>
+
+    <script>
+        class VoiceCopilotWidget {
+            constructor() {
+                this.isRecording = false;
+                this.mediaRecorder = null;
+                this.audioChunks = [];
+                this.transcription = '';
+
+                this.initElements();
+                this.setupEventListeners();
+                this.loadSettings();
+            }
+
+            initElements() {
+                this.micButton = document.getElementById('micButton');
+                this.status = document.getElementById('status');
+                this.transcriptionDiv = document.getElementById('transcription');
+                this.copyBtn = document.getElementById('copyBtn');
+                this.clearBtn = document.getElementById('clearBtn');
+                this.settingsLink = document.getElementById('settingsLink');
+                this.helpLink = document.getElementById('helpLink');
+            }
+
+            setupEventListeners() {
+                this.micButton.addEventListener('click', () => this.toggleRecording());
+                this.copyBtn.addEventListener('click', () => this.copyToClipboard());
+                this.clearBtn.addEventListener('click', () => this.clearTranscription());
+                this.settingsLink.addEventListener('click', () => this.showSettings());
+                this.helpLink.addEventListener('click', () => this.showHelp());
+
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey && e.shiftKey && e.key === 'V') {
+                        e.preventDefault();
+                        this.toggleRecording();
+                    }
+                });
+            }
+
+            async toggleRecording() {
+                if (this.isRecording) {
+                    await this.stopRecording();
+                } else {
+                    await this.startRecording();
+                }
+            }
+
+            async startRecording() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    this.mediaRecorder = new MediaRecorder(stream);
+                    this.audioChunks = [];
+
+                    this.mediaRecorder.ondataavailable = (event) => {
+                        this.audioChunks.push(event.data);
+                    };
+
+                    this.mediaRecorder.onstop = async () => {
+                        await this.processRecording();
+                        // Stop all tracks to release microphone
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+
+                    this.mediaRecorder.start();
+                    this.isRecording = true;
+                    this.updateUI('🔴 Recording... Click to stop', 'recording');
+                    this.micButton.textContent = '⏹️';
+
+                } catch (error) {
+                    console.error('Recording failed:', error);
+                    this.updateUI('❌ Microphone access denied', 'error');
+                }
+            }
+
+            async stopRecording() {
+                if (this.mediaRecorder && this.isRecording) {
+                    this.mediaRecorder.stop();
+                    this.isRecording = false;
+                    this.updateUI('⏳ Processing...', 'processing');
+                }
+            }
+
+            async processRecording() {
+                try {
+                    const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
+                    const transcription = await this.transcribeAudio(audioBlob);
+
+                    if (transcription) {
+                        this.transcription = transcription;
+                        this.updateTranscription(transcription);
+                        this.updateUI('✅ Ready! Switch to Copilot and paste', 'success');
+
+                        // Auto-copy to clipboard
+                        await this.copyToClipboard();
+                    } else {
+                        this.updateUI('❌ Transcription failed', 'error');
+                    }
+
+                } catch (error) {
+                    console.error('Processing failed:', error);
+                    this.updateUI('❌ Processing failed', 'error');
+                }
+            }
+
+            async transcribeAudio(audioBlob) {
+                try {
+                    const formData = new FormData();
+                    formData.append('file', audioBlob, 'recording.wav');
+
+                    // Use the ASR service URL from settings or default
+                    const asrUrl = this.settings.asrUrl || 'http://localhost:8000/transcribe';
+
+                    const response = await fetch(asrUrl, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        return result.text;
+                    } else {
+                        throw new Error(`ASR failed: ${response.status}`);
+                    }
+
+                } catch (error) {
+                    console.error('Transcription error:', error);
+                    return null;
+                }
+            }
+
+            updateUI(statusText, statusClass = '') {
+                this.status.textContent = statusText;
+                this.micButton.className = `mic-button ${statusClass}`;
+                this.micButton.textContent = this.isRecording ? '⏹️' : '🎤';
+            }
+
+            updateTranscription(text) {
+                this.transcriptionDiv.textContent = text;
+                this.transcriptionDiv.classList.add('has-text');
+            }
+
+            async copyToClipboard() {
+                if (!this.transcription) {
+                    alert('No transcription to copy!');
+                    return;
+                }
+
+                try {
+                    await navigator.clipboard.writeText(this.transcription);
+                    this.showNotification('✅ Copied to clipboard! Switch to Copilot and paste.');
+                } catch (error) {
+                    console.error('Clipboard copy failed:', error);
+                    // Fallback for older browsers
+                    this.fallbackCopyToClipboard(this.transcription);
+                }
+            }
+
+            fallbackCopyToClipboard(text) {
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                this.showNotification('✅ Copied to clipboard! Switch to Copilot and paste.');
+            }
+
+            clearTranscription() {
+                this.transcription = '';
+                this.transcriptionDiv.textContent = 'Your transcription will appear here...';
+                this.transcriptionDiv.classList.remove('has-text');
+                this.updateUI('Ready to record');
+            }
+
+            showNotification(message) {
+                // Create notification element
+                const notification = document.createElement('div');
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: #4caf50;
+                    color: white;
+                    padding: 15px 20px;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    z-index: 10000;
+                    font-weight: 500;
+                    animation: slideIn 0.3s ease;
+                `;
+                notification.textContent = message;
+
+                document.body.appendChild(notification);
+
+                // Remove after 3 seconds
+                setTimeout(() => {
+                    notification.style.animation = 'slideOut 0.3s ease';
+                    setTimeout(() => {
+                        if (notification.parentNode) {
+                            notification.parentNode.removeChild(notification);
+                        }
+                    }, 300);
+                }, 3000);
+            }
+
+            showSettings() {
+                const settingsHtml = `
+                    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10001; display: flex; align-items: center; justify-content: center;">
+                        <div style="background: white; padding: 30px; border-radius: 15px; max-width: 400px; width: 90%;">
+                            <h3>⚙️ Settings</h3>
+                            <div style="margin: 20px 0;">
+                                <label>ASR Service URL:</label><br>
+                                <input type="text" id="asrUrl" value="${this.settings.asrUrl || 'http://localhost:8000/transcribe'}" style="width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px;">
+                            </div>
+                            <div style="text-align: right;">
+                                <button onclick="this.closest('.settings-modal').remove()" style="margin-right: 10px; padding: 8px 16px;">Cancel</button>
+                                <button onclick="voiceWidget.saveSettings()" style="padding: 8px 16px; background: #007acc; color: white; border: none; border-radius: 4px;">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                document.body.insertAdjacentHTML('beforeend', settingsHtml);
+            }
+
+            saveSettings() {
+                const asrUrl = document.getElementById('asrUrl').value;
+                this.settings.asrUrl = asrUrl;
+                localStorage.setItem('voiceCopilotSettings', JSON.stringify(this.settings));
+
+                // Close modal
+                document.querySelector('.settings-modal').remove();
+                this.showNotification('✅ Settings saved!');
+            }
+
+            showHelp() {
+                const helpHtml = `
+                    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10001; display: flex; align-items: center; justify-content: center;">
+                        <div style="background: white; padding: 30px; border-radius: 15px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                            <h3>❓ Help - Voice Copilot Widget</h3>
+                            <div style="margin: 20px 0; line-height: 1.6;">
+                                <h4>🎤 How to Use:</h4>
+                                <ol>
+                                    <li>Click the microphone button or press <kbd>Ctrl+Shift+V</kbd></li>
+                                    <li>Speak clearly into your microphone</li>
+                                    <li>Click the button again to stop recording</li>
+                                    <li>Your speech will be transcribed automatically</li>
+                                    <li>Switch to Copilot and paste (<kbd>Ctrl+V</kbd>) to send</li>
+                                </ol>
+
+                                <h4>⚙️ Settings:</h4>
+                                <ul>
+                                    <li><strong>ASR Service URL:</strong> URL of your speech-to-text service</li>
+                                    <li><strong>Keyboard Shortcut:</strong> Ctrl+Shift+V to toggle recording</li>
+                                </ul>
+
+                                <h4>🔧 Troubleshooting:</h4>
+                                <ul>
+                                    <li>Make sure your ASR service is running</li>
+                                    <li>Grant microphone permissions when prompted</li>
+                                    <li>Check browser console for error messages</li>
+                                </ul>
+                            </div>
+                            <div style="text-align: right;">
+                                <button onclick="this.closest('.settings-modal').remove()" style="padding: 8px 16px;">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                document.body.insertAdjacentHTML('beforeend', helpHtml);
+            }
+
+            loadSettings() {
+                this.settings = JSON.parse(localStorage.getItem('voiceCopilotSettings') || '{}');
+            }
+        }
+
+        // Initialize the widget when page loads
+        let voiceWidget;
+        document.addEventListener('DOMContentLoaded', () => {
+            voiceWidget = new VoiceCopilotWidget();
+        });
+
+        // Add CSS animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>

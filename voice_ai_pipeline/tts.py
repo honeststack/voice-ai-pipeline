@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import tempfile
+import torch
 
 
 class TextRequest(BaseModel):
@@ -21,17 +22,28 @@ class TTSService:
     text into audio files.
     """
 
-    def __init__(self, model_name: str = "tts_models/en/ljspeech/tacotron2-DDC_ph", use_gpu: bool = True) -> None:
+    def __init__(self, model_name: str = "tts_models/en/ljspeech/tacotron2-DDC_ph", use_gpu: bool | None = None) -> None:
         """Initialize the TTS service.
 
         Args:
             model_name: The name of the TTS model to use.
-            use_gpu: Whether to use GPU acceleration if available.
+            use_gpu: Whether to use GPU acceleration. If None, auto-detect GPU availability.
         """
         self.model_name = model_name
-        self.use_gpu = use_gpu
+        self.use_gpu = use_gpu if use_gpu is not None else self._detect_gpu()
         self.tts: TTS | None = None
         self.load_model()
+
+    def _detect_gpu(self) -> bool:
+        """Detect if GPU is available for acceleration.
+
+        Returns:
+            True if GPU is available and should be used, False otherwise.
+        """
+        try:
+            return torch.cuda.is_available() and torch.cuda.device_count() > 0
+        except Exception:
+            return False
 
     def load_model(self) -> None:
         """Load the TTS model into memory.
@@ -40,9 +52,22 @@ class TTSService:
             RuntimeError: If model loading fails.
         """
         try:
+            print(f"Loading TTS model '{self.model_name}' with GPU={self.use_gpu}")
             self.tts = TTS(self.model_name, gpu=self.use_gpu)
+            device = "GPU" if self.use_gpu else "CPU"
+            print(f"TTS model loaded successfully on {device}")
         except Exception as e:
-            raise RuntimeError(f"Failed to load TTS model {self.model_name}: {e}")
+            # Try fallback to CPU if GPU failed
+            if self.use_gpu:
+                print(f"GPU loading failed ({e}), falling back to CPU...")
+                self.use_gpu = False
+                try:
+                    self.tts = TTS(self.model_name, gpu=False)
+                    print("TTS model loaded successfully on CPU (fallback)")
+                except Exception as cpu_e:
+                    raise RuntimeError(f"Failed to load TTS model {self.model_name} on both GPU and CPU: GPU error: {e}, CPU error: {cpu_e}")
+            else:
+                raise RuntimeError(f"Failed to load TTS model {self.model_name}: {e}")
 
     def synthesize(self, text: str, output_path: str) -> None:
         """Synthesize text into an audio file.

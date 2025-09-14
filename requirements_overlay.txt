@@ -1,0 +1,11 @@
+# Voice Copilot Overlay Requirements
+# Install with: pip install -r requirements_overlay.txt
+
+tkinter>=8.6  # Usually comes with Python
+requests>=2.28.0
+pyaudio>=0.2.13
+numpy>=1.21.0
+
+# Optional dependencies (install separately if needed)
+# keyboard>=0.13.5  # For global hotkeys
+# pyautogui>=0.9.53  # For automated keyboard/mouse control

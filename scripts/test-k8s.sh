@@ -135,17 +135,9 @@ setup_minikube() {
 build_images() {
     log "Building Docker images..."
 
-    # Check if Dockerfiles exist
+    # Check if consolidated Dockerfile exists
     if [[ ! -f "docker/asr.Dockerfile" ]]; then
-        error "ASR Dockerfile not found: docker/asr.Dockerfile"
-        exit 1
-    fi
-    if [[ ! -f "docker/tts.Dockerfile" ]]; then
-        error "TTS Dockerfile not found: docker/tts.Dockerfile"
-        exit 1
-    fi
-    if [[ ! -f "docker/interface.Dockerfile" ]]; then
-        error "Interface Dockerfile not found: docker/interface.Dockerfile"
+        error "Consolidated Dockerfile not found: docker/asr.Dockerfile"
         exit 1
     fi
 
@@ -153,35 +145,21 @@ build_images() {
     info "Setting up Docker Buildx builder..."
 
     # Create and use buildx builder
-    if ! docker buildx create --use --name tts-builder 2>/dev/null; then
+    if ! docker buildx create --use --name voice-ai-builder 2>/dev/null; then
         # Builder might already exist, try to use it
-        if ! docker buildx use tts-builder 2>/dev/null; then
-            warning "Could not create/use tts-builder, using default builder"
+        if ! docker buildx use voice-ai-builder 2>/dev/null; then
+            warning "Could not create/use voice-ai-builder, using default builder"
         fi
     fi
 
-    # Build ASR image
-    info "Building ASR image with Buildx..."
-    if ! docker buildx build -f docker/asr.Dockerfile -t asr:latest --load --progress=plain .; then
-        error "Failed to build ASR image with Buildx"
+    # Build consolidated Voice AI image
+    info "Building consolidated Voice AI image with Buildx..."
+    if ! docker buildx build -f docker/asr.Dockerfile -t voice-ai-pipeline:latest --load --progress=plain .; then
+        error "Failed to build consolidated Voice AI image with Buildx"
         exit 1
     fi
 
-    # Build TTS image
-    info "Building TTS image with Buildx..."
-    if ! docker buildx build -f docker/tts.Dockerfile -t tts:latest --load --progress=plain .; then
-        error "Failed to build TTS image with Buildx"
-        exit 1
-    fi
-
-    # Build Interface image
-    info "Building Interface image with Buildx..."
-    if ! docker buildx build -f docker/interface.Dockerfile -t interface:latest --load --progress=plain .; then
-        error "Failed to build Interface image with Buildx"
-        exit 1
-    fi
-
-    success "All Docker images built successfully with Buildx"
+    success "Consolidated Voice AI Docker image built successfully with Buildx"
 }
 
 # Load images into Minikube if using Minikube
@@ -196,21 +174,13 @@ load_images_minikube() {
             exit 1
         fi
 
-        # Load images
-        if ! minikube image load asr:latest; then
-            error "Failed to load ASR image into Minikube"
-            exit 1
-        fi
-        if ! minikube image load tts:latest; then
-            error "Failed to load TTS image into Minikube"
-            exit 1
-        fi
-        if ! minikube image load interface:latest; then
-            error "Failed to load Interface image into Minikube"
+        # Load consolidated image
+        if ! minikube image load voice-ai-pipeline:latest; then
+            error "Failed to load consolidated Voice AI image into Minikube"
             exit 1
         fi
 
-        success "Images loaded into Minikube"
+        success "Consolidated Voice AI image loaded into Minikube"
     fi
 }
 
@@ -225,7 +195,7 @@ deploy_k8s() {
     fi
 
     # Check for required manifests
-    local required_manifests=("asr-deployment.yaml" "asr-service.yaml" "tts-deployment.yaml" "interface-deployment.yaml")
+    local required_manifests=("voice-ai-deployment.yaml")
     for manifest in "${required_manifests[@]}"; do
         if [[ ! -f "k8s/$manifest" ]]; then
             error "Required manifest not found: k8s/$manifest"
@@ -240,18 +210,10 @@ deploy_k8s() {
         exit 1
     fi
 
-    # Wait for deployments to be ready
-    info "Waiting for deployments to be ready..."
-    if ! kubectl wait --for=condition=available --timeout=${TIMEOUT}s deployment/asr-deployment; then
-        error "ASR deployment failed to become ready"
-        exit 1
-    fi
-    if ! kubectl wait --for=condition=available --timeout=${TIMEOUT}s deployment/tts-deployment; then
-        error "TTS deployment failed to become ready"
-        exit 1
-    fi
-    if ! kubectl wait --for=condition=available --timeout=${TIMEOUT}s deployment/interface-deployment; then
-        error "Interface deployment failed to become ready"
+    # Wait for deployment to be ready
+    info "Waiting for deployment to be ready..."
+    if ! kubectl wait --for=condition=available --timeout=${TIMEOUT}s deployment/voice-ai-deployment; then
+        error "Voice AI deployment failed to become ready"
         exit 1
     fi
 
@@ -282,17 +244,11 @@ run_tests() {
 get_service_urls() {
     log "Getting service URLs..."
 
-    # ASR service
-    local asr_url=$(kubectl get svc asr-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "localhost:8000")
-    info "ASR Service: http://${asr_url}"
-
-    # TTS service
-    local tts_url=$(kubectl get svc tts-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "localhost:8001")
-    info "TTS Service: http://${tts_url}"
-
-    # Interface service
-    local interface_url=$(kubectl get svc interface-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "localhost:7860")
-    info "Interface Service: http://${interface_url}"
+    # Voice AI service (consolidated)
+    local voice_ai_url=$(kubectl get svc voice-ai-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "localhost")
+    info "Voice AI Service: http://${voice_ai_url}:7860 (Interface)"
+    info "ASR Service: http://${voice_ai_url}:8000"
+    info "TTS Service: http://${voice_ai_url}:8001"
 }
 
 # Cleanup resources
@@ -347,7 +303,7 @@ run_full_test() {
     check_kubectl
     check_dependencies
     setup_minikube
-    build_images
+    # build_images
     load_images_minikube
     deploy_k8s
     get_service_urls

@@ -488,14 +488,17 @@ class KubernetesTester:
 
 def main():
     """Main entry point for Kubernetes testing."""
+
+# Pytest-compatible test function to run all k8s tests
+import pytest
+
+@pytest.mark.integration
+def test_k8s_suite():
     tester = KubernetesTester()
     results = tester.run_all_tests()
 
-    # Exit with appropriate code
-    if results["failed"] > 0:
-        sys.exit(1)
-    else:
-        sys.exit(0)
+    # If no Kubernetes cluster is available, skip the test
+    if results["failed"] > 0 and any("No Kubernetes cluster available" in str(result.get("message", "")) for result in results.get("results", [])):
+        pytest.skip("No Kubernetes cluster available. This is expected in local development environments without minikube/k8s setup.")
 
-if __name__ == "__main__":
-    main()
+    assert results["failed"] == 0, f"Some Kubernetes tests failed: {results['failed']} failed. See test output for details."

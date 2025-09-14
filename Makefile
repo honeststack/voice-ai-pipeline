@@ -1,20 +1,6 @@
 # Makefile for TTS AI Pipeline
 
-.PHONY: help install-k8s setup buil# Clean up resources
-clean: ## Clean up Docker images and Kubernetes resources
-	@echo "Deleting consolidated Kubernetes resources..."
-	kubectl delete -f k8s/voice-ai-deploy	@echo "Applying consolidated Kubernetes manifest..."
-	kubectl apply -f k8s/voice-ai-deployment.yaml
-	@echo "Waiting for deployment to be ready..."
-	kubectl wait --for=condition=available --timeout=300s deployment/voice-ai-deployment || (echo "Voice AI deployment failed. Check pod logs."; kubectl logs -l app=voice-ai --tail=50; exit 1).yaml --ignore-not-found=true
-	@echo "Removing Docker images..."
-	docker rmi asr:latest --force 2>/dev/null || true
-	@echo "Cleaning up Docker Buildx builder..."
-	docker buildx rm tts-builder 2>/dev/null || true
-	@echo "Cleaning up temporary files..."
-	find . -name "*.pyc" -delete
-	find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
-	@echo "Cleanup complete."e build-multi deploy clean dev test lint format
+.PHONY: help install-k8s setup build build-cache build-multi build-k8s deploy clean dev test lint format
 
 # Default target
 help: ## Show this help message
@@ -46,34 +32,45 @@ setup: ## Set up the project by installing Python dependencies
 	@echo "Setup complete. Activate venv with: source .venv/bin/activate"
 
 # Build Docker images
-build: ## Build all Docker images using Buildx
+build: ## Build consolidated Docker image using Buildx
 	@echo "Setting up Docker Buildx builder..."
-	docker buildx create --use --name tts-builder 2>/dev/null || docker buildx use tts-builder || true
-	@echo "Building consolidated AI Docker image..."
-	docker buildx build -f docker/asr.Dockerfile -t asr:latest --load --progress=plain .
+	docker buildx create --use --name voice-ai-builder 2>/dev/null || docker buildx use voice-ai-builder || true
+	@echo "Building consolidated Voice AI Docker image..."
+	docker buildx build -f docker/asr.Dockerfile -t voice-ai-pipeline:latest --load --progress=plain .
 	@echo "Docker image built successfully."
 
 # Build with cache
 build-cache: ## Build Docker images with BuildKit cache
 	@echo "Setting up Docker Buildx builder..."
-	docker buildx create --use --name tts-builder 2>/dev/null || docker buildx use tts-builder || true
-	@echo "Building consolidated AI Docker image with cache..."
-	docker buildx build -f docker/asr.Dockerfile -t asr:latest --load --progress=plain --cache-from type=local,src=/tmp/.buildx-cache-asr --cache-to type=local,dest=/tmp/.buildx-cache-asr-new,mode=max .
+	docker buildx create --use --name voice-ai-builder 2>/dev/null || docker buildx use voice-ai-builder || true
+	@echo "Building consolidated Voice AI Docker image with cache..."
+	docker buildx build -f docker/asr.Dockerfile -t voice-ai-pipeline:latest --load --progress=plain --cache-from type=local,src=/tmp/.buildx-cache-voice-ai --cache-to type=local,dest=/tmp/.buildx-cache-voice-ai-new,mode=max .
 	@echo "Moving cache directories..."
-	@mv /tmp/.buildx-cache-asr-new /tmp/.buildx-cache-asr 2>/dev/null || true
+	@mv /tmp/.buildx-cache-voice-ai-new /tmp/.buildx-cache-voice-ai 2>/dev/null || true
 	@echo "Docker image built with cache successfully."
 
 # Build for multiple platforms
 build-multi: ## Build Docker images for multiple platforms
 	@echo "Setting up Docker Buildx builder..."
-	docker buildx create --use --name tts-builder-multi 2>/dev/null || docker buildx use tts-builder-multi || true
-	@echo "Building consolidated AI Docker image for multiple platforms..."
-	docker buildx build -f docker/asr.Dockerfile -t asr:latest --platform linux/amd64,linux/arm64 --push .
+	docker buildx create --use --name voice-ai-builder-multi 2>/dev/null || docker buildx use voice-ai-builder-multi || true
+	@echo "Building consolidated Voice AI Docker image for multiple platforms..."
+	docker buildx build -f docker/asr.Dockerfile -t voice-ai-pipeline:latest --platform linux/amd64,linux/arm64 --push .
 	@echo "Multi-platform Docker image built successfully."
 
+# Build Docker images using Kubernetes Job
+build-k8s: ## Build Docker images using Kubernetes Job (requires Docker socket access)
+	@echo "Setting up Kubernetes image builder..."
+	kubectl create namespace voice-ai-build --dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f k8s/kaniko-job.yaml
+	@echo "Waiting for image build job to complete..."
+	kubectl wait --for=condition=complete --timeout=600s job/voice-ai-image-builder -n voice-ai-build
+	@echo "Image build completed. Loading into Minikube..."
+	minikube image load voice-ai-pipeline:latest
+	@echo "Cleaning up build job..."
+	kubectl delete -f k8s/kaniko-job.yaml --ignore-not-found=true
+	@echo "Kubernetes image build completed successfully."
+
 # Deploy to Kubernetes
-deploy: ## Deploy the application to Kubernetes
-	# Deploy to Kubernetes
 deploy: ## Deploy the application to Kubernetes
 	@echo "Applying consolidated Kubernetes manifest..."
 	kubectl apply -f k8s/voice-ai-deployment.yaml
@@ -84,11 +81,11 @@ deploy: ## Deploy the application to Kubernetes
 # Clean up resources
 clean: ## Clean up Docker images and Kubernetes resources
 	@echo "Deleting consolidated Kubernetes resources..."
-	kubectl delete -f k8s/asr-deployment.yaml --ignore-not-found=true
+	kubectl delete -f k8s/voice-ai-deployment.yaml --ignore-not-found=true
 	@echo "Removing Docker images..."
-	docker rmi asr:latest interface:latest --force 2>/dev/null || true
+	docker rmi voice-ai-pipeline:latest --force 2>/dev/null || true
 	@echo "Cleaning up Docker Buildx builder..."
-	docker buildx rm tts-builder 2>/dev/null || true
+	docker buildx rm voice-ai-builder 2>/dev/null || true
 	@echo "Cleaning up temporary files..."
 	find . -name "*.pyc" -delete
 	find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
@@ -241,9 +238,9 @@ k8s-setup: ## Setup Kubernetes cluster and deploy application
 	@echo "Building Docker images..."
 	$(MAKE) build
 	@echo "Loading image into Minikube..."
-	minikube image load asr:latest
+	minikube image load voice-ai-pipeline:latest
 	@echo "Applying consolidated Kubernetes manifest..."
-	kubectl apply -f k8s/asr-deployment.yaml
+	kubectl apply -f k8s/voice-ai-deployment.yaml
 	@echo "Waiting for deployments to be ready..."
 	kubectl wait --for=condition=available --timeout=300s deployment/voice-ai-deployment || (echo "Voice AI deployment failed. Check pod logs."; kubectl logs -l app=voice-ai --tail=50; exit 1)
 	@echo "Kubernetes setup complete. Get service IP with: make k8s-urls"

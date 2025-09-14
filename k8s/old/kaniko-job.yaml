@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: voice-ai-image-builder
+  namespace: voice-ai-build
+spec:
+  template:
+    spec:
+      containers:
+      - name: docker-builder
+        image: docker:24.0.7
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          echo "🚀 Starting Voice AI Pipeline Image Build..."
+          echo "📋 Checking Docker connectivity..."
+          docker version
+
+          echo "📦 Building consolidated Voice AI image..."
+          cd /workspace
+          docke buildx build -f docker/asr.Dockerfile -t voice-ai-pipeline:latest .
+
+          echo "✅ Image built successfully!"
+          docker images voice-ai-pipeline:latest
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+        - name: docker-socket
+          mountPath: /var/run/docker.sock
+        securityContext:
+          privileged: true
+      volumes:
+      - name: workspace
+        hostPath:
+          path: /home/philipmai/repos/voice-ai-pipeline
+          type: Directory
+      - name: docker-socket
+        hostPath:
+          path: /var/run/docker.sock
+          type: Socket
+      restartPolicy: Never

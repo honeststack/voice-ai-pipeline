@@ -1,0 +1,181 @@
+{
+  "name": "voice-copilot-mcp",
+  "displayName": "Voice Copilot MCP",
+  "description": "Add voice input capability to GitHub Copilot Chat using MCP protocol",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning",
+    "Snippets"
+  ],
+  "keywords": [
+    "voice",
+    "copilot",
+    "mcp",
+    "speech-to-text",
+    "asr",
+    "ai",
+    "productivity"
+  ],
+  "galleryBanner": {
+    "color": "#007acc",
+    "theme": "dark"
+  },
+  "icon": "resources/icon.png",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "voiceCopilot.startRecording",
+        "title": "Start Voice Recording",
+        "icon": "$(record)"
+      },
+      {
+        "command": "voiceCopilot.stopRecording",
+        "title": "Stop Voice Recording",
+        "icon": "$(stop)"
+      },
+      {
+        "command": "voiceCopilot.configure",
+        "title": "Configure Voice Copilot"
+      },
+      {
+        "command": "voiceCopilot.testConnection",
+        "title": "Test MCP Connection"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "voiceCopilot.startRecording",
+        "key": "ctrl+shift+v",
+        "mac": "cmd+shift+v",
+        "when": "editorTextFocus || chatInputFocus"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "voiceCopilot.startRecording",
+          "group": "navigation",
+          "when": "editorTextFocus"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "voiceCopilot.startRecording",
+          "when": "editorTextFocus || chatInputFocus"
+        },
+        {
+          "command": "voiceCopilot.stopRecording",
+          "when": "voiceCopilot.recording"
+        },
+        {
+          "command": "voiceCopilot.configure"
+        },
+        {
+          "command": "voiceCopilot.testConnection"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Voice Copilot MCP",
+      "properties": {
+        "voiceCopilot.mcp.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable MCP integration with Copilot"
+        },
+        "voiceCopilot.mcp.url": {
+          "type": "string",
+          "default": "http://localhost:3000/mcp",
+          "description": "MCP server URL for Copilot integration"
+        },
+        "voiceCopilot.asr.url": {
+          "type": "string",
+          "default": "http://localhost:8000/transcribe",
+          "description": "ASR service URL for speech-to-text"
+        },
+        "voiceCopilot.asr.timeout": {
+          "type": "number",
+          "default": 30,
+          "minimum": 5,
+          "maximum": 120,
+          "description": "Timeout for ASR requests (seconds)"
+        },
+        "voiceCopilot.recording.maxDuration": {
+          "type": "number",
+          "default": 30,
+          "minimum": 5,
+          "maximum": 300,
+          "description": "Maximum recording duration (seconds)"
+        },
+        "voiceCopilot.ui.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show recording status in status bar"
+        },
+        "voiceCopilot.ui.notifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notifications for recording events"
+        },
+        "voiceCopilot.hotkey": {
+          "type": "string",
+          "default": "ctrl+shift+v",
+          "description": "Global hotkey for voice recording"
+        }
+      }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "voiceCopilotExplorer",
+          "name": "Voice Copilot",
+          "icon": "$(mic)",
+          "contextualTitle": "Voice Copilot"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package": "@vscode/vsce package",
+    "publish": "@vscode/vsce publish"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "20.x",
+    "@types/mocha": "^10.0.6",
+    "eslint": "^9.9.1",
+    "@eslint/js": "^9.9.1",
+    "typescript": "^5.6.2",
+    "mocha": "^10.7.3",
+    "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^3.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "form-data": "^4.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thephiltacular/voice-ai-pipeline"
+  },
+  "bugs": {
+    "url": "https://github.com/thephiltacular/voice-ai-pipeline/issues"
+  },
+  "homepage": "https://github.com/thephiltacular/voice-ai-pipeline#readme",
+  "license": "MIT",
+  "publisher": "thephiltacular"
+}
