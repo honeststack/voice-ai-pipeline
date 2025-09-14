@@ -152,4 +152,12 @@ async def info() -> Dict[str, str]:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    # Support for consolidated container
+    service_type = os.getenv("SERVICE_TYPE", "asr")
+    port = int(os.getenv("PORT", "8000"))
+
+    if service_type == "asr":
+        uvicorn.run(app, host="0.0.0.0", port=port)
+    else:
+        print(f"ASR service configured but SERVICE_TYPE={service_type}, skipping...")

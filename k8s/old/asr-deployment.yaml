@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-ai-deployment
+  labels:
+    app: voice-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: voice-ai
+  template:
+    metadata:
+      labels:
+        app: voice-ai
+    spec:
+      containers:
+      - name: asr
+        image: asr:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: SERVICE_TYPE
+          value: "asr"
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      - name: tts
+        image: asr:latest
+        ports:
+        - containerPort: 8001
+        env:
+        - name: SERVICE_TYPE
+          value: "tts"
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      - name: interface
+        image: interface:latest
+        ports:
+        - containerPort: 7860
+        env:
+        - name: ASR_URL
+          value: "http://localhost:8000"
+        - name: TTS_URL
+          value: "http://localhost:8001"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "250m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 7860
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 7860
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voice-ai-service
+  labels:
+    app: voice-ai
+spec:
+  selector:
+    app: voice-ai
+  ports:
+    - name: asr
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
+    - name: tts
+      protocol: TCP
+      port: 8001
+      targetPort: 8001
+    - name: interface
+      protocol: TCP
+      port: 7860
+      targetPort: 7860
+  type: LoadBalancer

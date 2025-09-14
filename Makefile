@@ -1,6 +1,20 @@
 # Makefile for TTS AI Pipeline
 
-.PHONY: help install-k8s setup build build-cache build-multi deploy clean dev test lint format
+.PHONY: help install-k8s setup buil# Clean up resources
+clean: ## Clean up Docker images and Kubernetes resources
+	@echo "Deleting consolidated Kubernetes resources..."
+	kubectl delete -f k8s/voice-ai-deploy	@echo "Applying consolidated Kubernetes manifest..."
+	kubectl apply -f k8s/voice-ai-deployment.yaml
+	@echo "Waiting for deployment to be ready..."
+	kubectl wait --for=condition=available --timeout=300s deployment/voice-ai-deployment || (echo "Voice AI deployment failed. Check pod logs."; kubectl logs -l app=voice-ai --tail=50; exit 1).yaml --ignore-not-found=true
+	@echo "Removing Docker images..."
+	docker rmi asr:latest --force 2>/dev/null || true
+	@echo "Cleaning up Docker Buildx builder..."
+	docker buildx rm tts-builder 2>/dev/null || true
+	@echo "Cleaning up temporary files..."
+	find . -name "*.pyc" -delete
+	find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+	@echo "Cleanup complete."e build-multi deploy clean dev test lint format
 
 # Default target
 help: ## Show this help message
@@ -35,58 +49,44 @@ setup: ## Set up the project by installing Python dependencies
 build: ## Build all Docker images using Buildx
 	@echo "Setting up Docker Buildx builder..."
 	docker buildx create --use --name tts-builder 2>/dev/null || docker buildx use tts-builder || true
-	@echo "Building ASR Docker image..."
+	@echo "Building consolidated AI Docker image..."
 	docker buildx build -f docker/asr.Dockerfile -t asr:latest --load --progress=plain .
-	@echo "Building TTS Docker image..."
-	docker buildx build -f docker/tts.Dockerfile -t tts:latest --load --progress=plain .
-	@echo "Building Interface Docker image..."
-	docker buildx build -f docker/interface.Dockerfile -t interface:latest --load --progress=plain .
-	@echo "Docker images built successfully."
+	@echo "Docker image built successfully."
 
 # Build with cache
 build-cache: ## Build Docker images with BuildKit cache
 	@echo "Setting up Docker Buildx builder..."
 	docker buildx create --use --name tts-builder 2>/dev/null || docker buildx use tts-builder || true
-	@echo "Building ASR Docker image with cache..."
+	@echo "Building consolidated AI Docker image with cache..."
 	docker buildx build -f docker/asr.Dockerfile -t asr:latest --load --progress=plain --cache-from type=local,src=/tmp/.buildx-cache-asr --cache-to type=local,dest=/tmp/.buildx-cache-asr-new,mode=max .
-	@echo "Building TTS Docker image with cache..."
-	docker buildx build -f docker/tts.Dockerfile -t tts:latest --load --progress=plain --cache-from type=local,src=/tmp/.buildx-cache-tts --cache-to type=local,dest=/tmp/.buildx-cache-tts-new,mode=max .
-	@echo "Building Interface Docker image with cache..."
-	docker buildx build -f docker/interface.Dockerfile -t interface:latest --load --progress=plain --cache-from type=local,src=/tmp/.buildx-cache-interface --cache-to type=local,dest=/tmp/.buildx-cache-interface-new,mode=max .
 	@echo "Moving cache directories..."
 	@mv /tmp/.buildx-cache-asr-new /tmp/.buildx-cache-asr 2>/dev/null || true
-	@mv /tmp/.buildx-cache-tts-new /tmp/.buildx-cache-tts 2>/dev/null || true
-	@mv /tmp/.buildx-cache-interface-new /tmp/.buildx-cache-interface 2>/dev/null || true
-	@echo "Docker images built with cache successfully."
+	@echo "Docker image built with cache successfully."
 
 # Build for multiple platforms
 build-multi: ## Build Docker images for multiple platforms
 	@echo "Setting up Docker Buildx builder..."
 	docker buildx create --use --name tts-builder-multi 2>/dev/null || docker buildx use tts-builder-multi || true
-	@echo "Building multi-platform ASR Docker image..."
+	@echo "Building consolidated AI Docker image for multiple platforms..."
 	docker buildx build -f docker/asr.Dockerfile -t asr:latest --platform linux/amd64,linux/arm64 --push .
-	@echo "Building multi-platform TTS Docker image..."
-	docker buildx build -f docker/tts.Dockerfile -t tts:latest --platform linux/amd64,linux/arm64 --push .
-	@echo "Building multi-platform Interface Docker image..."
-	docker buildx build -f docker/interface.Dockerfile -t interface:latest --platform linux/amd64,linux/arm64 --push .
-	@echo "Multi-platform Docker images built successfully."
+	@echo "Multi-platform Docker image built successfully."
 
 # Deploy to Kubernetes
 deploy: ## Deploy the application to Kubernetes
-	@echo "Applying Kubernetes manifests..."
-	kubectl apply -f k8s/
-	@echo "Waiting for deployments to be ready..."
-	kubectl wait --for=condition=available --timeout=300s deployment/asr-deployment
-	kubectl wait --for=condition=available --timeout=300s deployment/tts-deployment
-	kubectl wait --for=condition=available --timeout=300s deployment/interface-deployment
-	@echo "Deployment complete. Get service IP with: kubectl get svc interface-service"
+	# Deploy to Kubernetes
+deploy: ## Deploy the application to Kubernetes
+	@echo "Applying consolidated Kubernetes manifest..."
+	kubectl apply -f k8s/voice-ai-deployment.yaml
+	@echo "Waiting for deployment to be ready..."
+	kubectl wait --for=condition=available --timeout=300s deployment/voice-ai-deployment
+	@echo "Deployment complete. Get service IP with: kubectl get svc voice-ai-service"
 
 # Clean up resources
 clean: ## Clean up Docker images and Kubernetes resources
-	@echo "Deleting Kubernetes resources..."
-	kubectl delete -f k8s/ --ignore-not-found=true
+	@echo "Deleting consolidated Kubernetes resources..."
+	kubectl delete -f k8s/asr-deployment.yaml --ignore-not-found=true
 	@echo "Removing Docker images..."
-	docker rmi asr:latest tts:latest interface:latest --force 2>/dev/null || true
+	docker rmi asr:latest interface:latest --force 2>/dev/null || true
 	@echo "Cleaning up Docker Buildx builder..."
 	docker buildx rm tts-builder 2>/dev/null || true
 	@echo "Cleaning up temporary files..."
@@ -224,3 +224,74 @@ test-k8s-health: ## Test Kubernetes deployment health and connectivity
 	@echo ""
 	@echo "Testing service endpoints..."
 	./scripts/test-k8s.sh urls
+
+# Kubernetes Management Targets
+
+# Setup Kubernetes cluster and deploy resources
+k8s-setup: ## Setup Kubernetes cluster and deploy application
+	@echo "Setting up Kubernetes cluster..."
+	@if ! kubectl cluster-info >/dev/null 2>&1; then \
+		echo "Starting Minikube..."; \
+		minikube start --driver=docker --gpus=all; \
+		echo "Waiting for cluster to be ready..."; \
+		kubectl wait --for=condition=Ready node/minikube --timeout=300s; \
+	else \
+		echo "Kubernetes cluster already running."; \
+	fi
+	@echo "Building Docker images..."
+	$(MAKE) build
+	@echo "Loading image into Minikube..."
+	minikube image load asr:latest
+	@echo "Applying consolidated Kubernetes manifest..."
+	kubectl apply -f k8s/asr-deployment.yaml
+	@echo "Waiting for deployments to be ready..."
+	kubectl wait --for=condition=available --timeout=300s deployment/voice-ai-deployment || (echo "Voice AI deployment failed. Check pod logs."; kubectl logs -l app=voice-ai --tail=50; exit 1)
+	@echo "Kubernetes setup complete. Get service IP with: make k8s-urls"
+
+# Clean up Kubernetes resources
+k8s-cleanup: ## Clean up Kubernetes resources and optionally stop cluster
+	@echo "Deleting consolidated Kubernetes resources..."
+	kubectl delete -f k8s/voice-ai-deployment.yaml --ignore-not-found=true
+	@echo "Waiting for resources to be deleted..."
+	kubectl wait --for=delete deployment/voice-ai-deployment --timeout=60s || true
+	@echo "Kubernetes resources cleaned up."
+
+# Stop Kubernetes cluster
+k8s-stop: ## Stop the Kubernetes cluster (Minikube)
+	@echo "Stopping Kubernetes cluster..."
+	minikube stop
+	@echo "Cluster stopped."
+
+# Show Kubernetes service URLs
+k8s-urls: ## Show Kubernetes service URLs and access information
+	@echo "Getting service information..."
+	@echo "Voice AI Service:"
+	kubectl get svc voice-ai-service -o jsonpath='{.spec.type} type, external IP: {.status.loadBalancer.ingress[0].ip}, ports: {.spec.ports[*].port}' 2>/dev/null || kubectl get svc voice-ai-service
+	@echo ""
+	@echo "Pod status:"
+	kubectl get pods -o wide
+	@echo ""
+	@echo "To access the interface, use the LoadBalancer IP or set up port forwarding:"
+	@echo "kubectl port-forward svc/voice-ai-service 7860:7860"
+	@echo ""
+	@echo "Service URLs:"
+	@echo "  Interface: http://<EXTERNAL_IP>:7860"
+	@echo "  ASR: http://<EXTERNAL_IP>:8000"
+	@echo "  TTS: http://<EXTERNAL_IP>:8001"
+
+# Check Kubernetes cluster status
+k8s-status: ## Check Kubernetes cluster and deployment status
+	@echo "Cluster status:"
+	kubectl cluster-info
+	@echo ""
+	@echo "Node status:"
+	kubectl get nodes
+	@echo ""
+	@echo "Pod status:"
+	kubectl get pods
+	@echo ""
+	@echo "Service status:"
+	kubectl get svc
+	@echo ""
+	@echo "Deployment status:"
+	kubectl get deployments

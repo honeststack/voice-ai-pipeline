@@ -153,4 +153,12 @@ async def info() -> Dict[str, str]:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+
+    # Support for consolidated container
+    service_type = os.getenv("SERVICE_TYPE", "tts")
+    port = int(os.getenv("PORT", "8001"))
+
+    if service_type == "tts":
+        uvicorn.run(app, host="0.0.0.0", port=port)
+    else:
+        print(f"TTS service configured but SERVICE_TYPE={service_type}, skipping...")

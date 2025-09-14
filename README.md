@@ -23,7 +23,9 @@ A containerized Text-to-Speech (TTS) AI pipeline with Automatic Speech Recogniti
 
 ## Overview
 
-The TTS AI Pipeline enables real-time voice-to-speech conversion through a web interface. Users can speak into their microphone, have their speech transcribed via ASR, and receive synthesized speech output. The system uses local AI models (Whisper for ASR, Coqui TTS for synthesis) running in containers, ensuring data privacy and leveraging GPU acceleration for performance.
+The TTS AI Pipeline enables real-time voice-to-speech conversion through a web interface. Users can speak into their microphone, have their speech transcribed via ASR, and receive synthesized speech output. The system uses local AI models (Whisper for ASR, Coqui TTS for synthesis) running in a single optimized container, ensuring data privacy and leveraging GPU acceleration for performance.
+
+**Key Optimization**: All services (ASR, TTS, Interface) run in parallel within a single container, dramatically simplifying deployment while maintaining full functionality and optimal resource utilization.
 
 Ideal for applications requiring offline speech processing, such as voice assistants, accessibility tools, or content creation workflows.
 
@@ -33,7 +35,7 @@ Ideal for applications requiring offline speech processing, such as voice assist
 - **TTS Synthesis**: High-quality text-to-speech using Coqui TTS models
 - **Web Interface**: Gradio-based UI with microphone input support
 - **Auto-Note Creation**: Automatically transcribe, summarize, and create notes in Microsoft OneNote
-- **Containerized**: Docker containers for easy deployment and scaling
+- **Single-Container Deployment**: All services consolidated into one optimized container with parallel execution
 - **Kubernetes Orchestration**: Managed deployment with GPU resource allocation
 - **Configurable Models**: Top-level configuration for selecting AI models
 - **GPU Acceleration**: Optimized for NVIDIA GPUs with CUDA support
@@ -42,16 +44,17 @@ Ideal for applications requiring offline speech processing, such as voice assist
 
 ## Architecture
 
-The pipeline consists of three main components:
+The pipeline runs as a single optimized container with all services operating in parallel:
 
-1. **ASR Service**: FastAPI application running Whisper for speech-to-text transcription
-2. **TTS Service**: FastAPI application running Coqui TTS for text-to-speech synthesis
-3. **Interface Service**: Gradio web application coordinating ASR and TTS services with microphone access
+1. **Unified AI Service**: Single container running ASR, TTS, and Interface services simultaneously
+2. **Parallel Processing**: All services start concurrently for optimal resource utilization
+3. **Service Selection**: Environment-based configuration determines which services are active
 
-Components communicate via Kubernetes services, with GPU resources allocated as needed.
+Components communicate internally within the container, with GPU resources allocated efficiently.
 
 ```
 [User Microphone] -> [Gradio Interface] -> [ASR Service] -> [TTS Service] -> [Audio Output]
+                    (All in single container with parallel execution)
 ```
 
 ## Prerequisites
@@ -95,35 +98,32 @@ Components communicate via Kubernetes services, with GPU resources allocated as 
      ```
    - Ensure NVIDIA device plugin is installed in your cluster
 
-4. **Build Docker images** (optional - test script handles this automatically):
+4. **Build Docker image** (optional - deployment script handles this automatically):
    ```bash
    # Using Docker Buildx (recommended)
-   docker buildx build -f docker/asr.Dockerfile -t asr:latest --load .
-   docker buildx build -f docker/tts.Dockerfile -t tts:latest --load .
-   docker buildx build -f docker/interface.Dockerfile -t interface:latest --load .
+   docker buildx build -f docker/asr.Dockerfile -t voice-ai-pipeline:latest --load .
 
    # Or using legacy Docker build
-   docker build -f docker/asr.Dockerfile -t asr:latest .
-   docker build -f docker/tts.Dockerfile -t tts:latest .
-   docker build -f docker/interface.Dockerfile -t interface:latest .
+   docker build -f docker/asr.Dockerfile -t voice-ai-pipeline:latest .
    ```
 
 ## Quickstart
 
 1. **Deploy to Kubernetes**:
    ```bash
-   kubectl apply -f k8s/
+   make k8s-setup
    ```
 
 2. **Check deployment status**:
    ```bash
-   kubectl get pods
-   kubectl get services
+   make k8s-status
    ```
 
 3. **Access the web interface**:
-   - Get the service IP: `kubectl get svc interface-service`
-   - Open `http://<SERVICE_IP>:7860` in your browser
+   ```bash
+   make k8s-urls
+   ```
+   - Open the provided URL in your browser
    - Click the microphone button, speak, and receive transcribed text and synthesized speech
 
 4. **Test the pipeline**:
@@ -143,19 +143,24 @@ Components communicate via Kubernetes services, with GPU resources allocated as 
 
 ### API Usage
 
-The ASR and TTS services expose REST APIs:
+The unified service exposes REST APIs for all components:
 
 **ASR Service** (Port 8000):
 ```bash
-curl -X POST -F "file=@audio.wav" http://asr-service:8000/transcribe
+curl -X POST -F "file=@audio.wav" http://voice-ai-service:8000/transcribe
 ```
 
 **TTS Service** (Port 8001):
 ```bash
 curl -X POST -H "Content-Type: application/json" \
   -d '{"text": "Hello, world!"}' \
-  http://tts-service:8001/synthesize \
+  http://voice-ai-service:8001/synthesize \
   --output output.wav
+```
+
+**Interface Service** (Port 7860):
+```bash
+curl http://voice-ai-service:7860/health
 ```
 
 ### Local Development
@@ -443,16 +448,16 @@ Example output:
 
 ### Model Selection
 
-Configure AI models via environment variables in Kubernetes deployments:
+Configure AI models via environment variables in the Kubernetes deployment:
 
 - **ASR Model**: Set `ASR_MODEL` (e.g., "small", "medium", "large")
 - **TTS Model**: Set `TTS_MODEL` (e.g., "tts_models/en/ljspeech/tacotron2-DDC_ph")
+- **Service Type**: Set `SERVICE_TYPE` to control which services run ("asr", "tts", "interface", or "all")
 
-Update `k8s/asr-deployment.yaml` and `k8s/tts-deployment.yaml`, then redeploy:
+Update `k8s/voice-ai-deployment.yaml`, then redeploy:
 
 ```bash
-kubectl apply -f k8s/asr-deployment.yaml
-kubectl apply -f k8s/tts-deployment.yaml
+kubectl apply -f k8s/voice-ai-deployment.yaml
 ```
 
 ### GPU Configuration
@@ -469,11 +474,12 @@ resources:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `SERVICE_TYPE` | "all" | Services to run ("asr", "tts", "interface", or "all") |
 | `ASR_MODEL` | "small" | Whisper model size |
 | `TTS_MODEL` | "tts_models/en/ljspeech/tacotron2-DDC_ph" | Coqui TTS model |
 | `USE_GPU` | "true" | Enable GPU acceleration |
-| `ASR_URL` | "http://asr-service:8000/transcribe" | ASR service endpoint |
-| `TTS_URL` | "http://tts-service:8001/synthesize" | TTS service endpoint |
+| `ASR_URL` | "http://localhost:8000/transcribe" | ASR service endpoint |
+| `TTS_URL` | "http://localhost:8001/synthesize" | TTS service endpoint |
 
 ## Optimization
 
@@ -502,38 +508,55 @@ Use included optimization scripts to benchmark and select optimal models:
 **Pods not starting**:
 - Check GPU availability: `nvidia-smi`
 - Verify NVIDIA device plugin: `kubectl get pods -n kube-system | grep nvidia`
-- Check pod logs: `kubectl logs <pod-name>`
+- Check pod logs: `kubectl logs -f voice-ai-pod`
+- Verify single container has all required dependencies
+
+**Service not accessible**:
+- Check if all services started in parallel: `kubectl logs voice-ai-pod | grep "Starting"`
+- Verify SERVICE_TYPE environment variable is set correctly
+- Check internal port mappings within the container
 
 **Out of memory errors**:
 - Reduce model size in configuration
 - Increase GPU memory limits if available
+- Monitor resource usage: `kubectl top pods`
 
 **Microphone not working**:
 - Ensure browser permissions for microphone access
 - Test with different browsers
 - Check system audio settings
+- Verify interface service is running: `curl http://voice-ai-service:7860/health`
 
 **Slow performance**:
 - Use smaller models
-- Ensure GPU is being utilized
-- Check network latency between services
+- Ensure GPU is being utilized: `nvidia-smi`
+- Check if all services are competing for resources
 
 **Container build failures**:
 - Verify Docker has access to GPU
 - Check CUDA compatibility
 - Update base images if needed
+- Ensure all dependencies are included in single container
 
 ### Logs and Debugging
 
 ```bash
-# View pod logs
-kubectl logs -f <pod-name>
+# View pod logs (all services in one container)
+kubectl logs -f voice-ai-pod
 
 # Check service endpoints
-kubectl get endpoints
+kubectl get endpoints voice-ai-service
 
-# Debug network issues
-kubectl exec -it <pod-name> -- /bin/bash
+# Debug container issues
+kubectl exec -it voice-ai-pod -- /bin/bash
+
+# Monitor resource usage
+kubectl top pods
+
+# Check service health
+curl http://voice-ai-service:8000/health  # ASR
+curl http://voice-ai-service:8001/health  # TTS
+curl http://voice-ai-service:7860/health  # Interface
 ```
 
 ### Getting Help

@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-ai-deployment
+  labels:
+    app: voice-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: voice-ai
+  template:
+    metadata:
+      labels:
+        app: voice-ai
+    spec:
+      containers:
+      - name: voice-ai
+        image: asr:latest
+        ports:
+        - containerPort: 8000
+          name: asr
+        - containerPort: 8001
+          name: tts
+        - containerPort: 7860
+          name: interface
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+          requests:
+            memory: "4Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 7860
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 7860
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voice-ai-service
+  labels:
+    app: voice-ai
+spec:
+  selector:
+    app: voice-ai
+  ports:
+    - name: asr
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
+    - name: tts
+      protocol: TCP
+      port: 8001
+      targetPort: 8001
+    - name: interface
+      protocol: TCP
+      port: 7860
+      targetPort: 7860
+  type: LoadBalancer
