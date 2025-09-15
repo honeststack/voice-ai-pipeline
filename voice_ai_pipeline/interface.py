@@ -48,9 +48,10 @@ async def process_audio_async(audio: Tuple[int, np.ndarray] | None, enable_mcp: 
         async with aiohttp.ClientSession() as session:
             # Send to ASR service asynchronously
             with open(temp_path, "rb") as f:
-                audio_data = f.read()
+                audio_data = aiohttp.FormData()
+                audio_data.add_field('file', f, filename='audio.wav', content_type='audio/wav')
 
-            async with session.post(asr_url, data={"file": audio_data}) as response:
+            async with session.post(asr_url, data=audio_data) as response:
                 if response.status != 200:
                     return None, f"ASR failed: {await response.text()}"
 

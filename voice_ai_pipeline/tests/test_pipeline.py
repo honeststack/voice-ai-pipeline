@@ -44,7 +44,7 @@ def docker_containers():
 
         try:
             # First, stop any running service containers to ensure clean start
-            expected_containers = ["asr-service", "tts-service", "interface-service"]
+            expected_containers = ["voice-ai-service"]
             result = subprocess.run(
                 ["docker", "ps", "--format", "{{.Names}}"],
                 capture_output=True, text=True, check=True
@@ -74,11 +74,11 @@ def docker_containers():
             all_containers = [name for name in all_result.stdout.strip().split('\n') if name]
             existing_containers = [name for name in all_containers if name in expected_containers]
 
-            if len(found_containers) == 3:  # All 3 services should be running
-                print(f"   📦 Found running containers: {', '.join(found_containers)}")
+            if len(found_containers) == 1:  # All services should be running in one container
+                print(f"   📦 Found running container: {', '.join(found_containers)}")
                 return True
             elif len(found_containers) >= 1:  # At least 1 service is running, check for existing stopped containers
-                print(f"   ⚠️  Found only {len(found_containers)} running containers: {', '.join(found_containers)}")
+                print(f"   ⚠️  Found running container: {', '.join(found_containers)}")
                 print("   🔍 Checking for existing stopped containers...")
 
                 # Check all containers (running or stopped)
@@ -124,8 +124,8 @@ def docker_containers():
             # Only stop containers we created or that match our service names
             containers_to_stop = []
             for container in all_containers:
-                if container in ["asr-test", "tts-test", "interface-test"] or \
-                   container in ["asr-service", "tts-service", "interface-service"]:
+                if container in ["voice-ai-test"] or \
+                   container in ["voice-ai-service"]:
                     containers_to_stop.append(container)
 
             if containers_to_stop:

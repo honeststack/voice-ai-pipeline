@@ -57,12 +57,15 @@ spec:
       protocol: TCP
       port: 8000
       targetPort: 8000
+      nodePort: 30690
     - name: tts
       protocol: TCP
       port: 8001
       targetPort: 8001
+      nodePort: 30383
     - name: interface
       protocol: TCP
       port: 7860
       targetPort: 7860
-  type: LoadBalancer
+      nodePort: 30767
+  type: NodePort

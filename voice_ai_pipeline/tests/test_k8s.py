@@ -2,7 +2,23 @@
 """
 Kubernetes Testing Suite for TTS AI Pipeline
 
-This script provides comprehensive testing for the TTS AI Pipeline deployed on Kubernetes:
+This script prov        if success and stdout.strip() and stdout.strip() != "''":
+            hostname = stdout.strip().strip('"')
+            self.log(f"Found hostname: '{hostname}'", "DEBUG")
+            if hostname:  # Only return if hostname is not empty
+                return f"http://{hostname}"
+
+        # Try IP address
+        success, stdout, stderr = self.run_command([
+            "kubectl", "get", "svc", service_name,
+            "-o", "jsonpath='{.status.loadBalancer.ingress[0].ip}'"
+        ])
+
+        if success and stdout.strip() and stdout.strip() != "''":
+            ip_addr = stdout.strip().strip('"')
+            self.log(f"Found IP: '{ip_addr}'", "DEBUG")
+            if ip_addr:  # Only return if IP is not empty
+                return f"http://{ip_addr}"ive testing for the TTS AI Pipeline deployed on Kubernetes:
 - Service health checks
 - Inter-service communication
 - End-to-end pipeline testing
@@ -28,9 +44,9 @@ from typing import Dict, Any, Tuple, List, Optional
 from dataclasses import dataclass
 
 # Kubernetes service URLs (internal cluster addresses)
-ASR_SERVICE_URL = "http://asr-service:8000"
-TTS_SERVICE_URL = "http://tts-service:8001"
-INTERFACE_SERVICE_URL = "http://interface-service:7860"
+ASR_SERVICE_URL = "http://voice-ai-service:8000"
+TTS_SERVICE_URL = "http://voice-ai-service:8001"
+INTERFACE_SERVICE_URL = "http://voice-ai-service:7860"
 
 # External access URLs (for load balancer)
 EXTERNAL_INTERFACE_URL = None  # Will be determined dynamically
@@ -80,14 +96,18 @@ class KubernetesTester:
 
     def get_service_url(self, service_name: str) -> str:
         """Get the external URL for a LoadBalancer service."""
+        self.log(f"Getting service URL for {service_name}", "DEBUG")
+
         success, stdout, stderr = self.run_command([
             "kubectl", "get", "svc", service_name,
             "-o", "jsonpath='{.status.loadBalancer.ingress[0].hostname}'"
         ])
 
         if success and stdout.strip():
-            hostname = stdout.strip().strip('"')
-            return f"http://{hostname}"
+            hostname = stdout.strip().strip('"\'')
+            self.log(f"Found hostname: '{hostname}' (len={len(hostname)})", "DEBUG")
+            if hostname:  # Only return if hostname is not empty
+                return f"http://{hostname}"
 
         # Try IP address
         success, stdout, stderr = self.run_command([
@@ -96,11 +116,58 @@ class KubernetesTester:
         ])
 
         if success and stdout.strip():
-            ip_addr = stdout.strip().strip('"')
-            return f"http://{ip_addr}"
+            ip_addr = stdout.strip().strip('"\'')
+            self.log(f"Found IP: '{ip_addr}' (len={len(ip_addr)})", "DEBUG")
+            if ip_addr:  # Only return if IP is not empty
+                return f"http://{ip_addr}"
 
-        # Fallback to port forwarding for local testing
-        return f"http://localhost:{8000 + ['asr', 'tts', 'interface'].index(service_name.split('-')[0])}"
+        # Try Minikube service URL for local development
+        # For Minikube with Docker driver, use nodePort instead of minikube service command
+        self.log("Trying nodePort approach", "DEBUG")
+        success, stdout, stderr = self.run_command([
+            "kubectl", "get", "svc", service_name,
+            "-o", "jsonpath='{.spec.ports[*].nodePort}'"
+        ])
+
+        if success and stdout.strip():
+            # Get all nodePorts and pick the last one (interface service)
+            node_ports = stdout.strip().strip("'").split()
+            self.log(f"Found nodePorts: {node_ports}", "DEBUG")
+            if node_ports:
+                interface_node_port = node_ports[-1]  # Last port is interface (7860)
+                interface_url = f"http://localhost:{interface_node_port}"
+                self.log(f"Using Minikube nodePort URL: {interface_url}", "DEBUG")
+                return interface_url
+        else:
+            self.log(f"NodePort command failed: {stderr}", "DEBUG")
+
+        # Fallback: try the old minikube service command (may hang with Docker driver)
+        self.log("Trying minikube service command", "DEBUG")
+        success, stdout, stderr = self.run_command([
+            "minikube", "service", service_name, "--url"
+        ], timeout=1)  # Short timeout to avoid hanging
+
+        if success and stdout.strip():
+            urls = stdout.strip().split('\n')
+            self.log(f"Minikube URLs: {urls}", "DEBUG")
+            # For consolidated service, return the interface URL (last one, port 7860)
+            if urls and len(urls) >= 3:
+                interface_url = urls[-1]
+                self.log(f"Using interface URL: {interface_url}", "DEBUG")
+                return interface_url
+        else:
+            self.log(f"Minikube service command failed: {stderr}", "DEBUG")
+
+        # Final fallback
+        self.log("Using localhost fallback", "DEBUG")
+        if "asr" in service_name:
+            return "http://localhost:8000"
+        elif "tts" in service_name:
+            return "http://localhost:8001"
+        elif "interface" in service_name:
+            return "http://localhost:7860"
+        else:
+            return "http://localhost:8000"
 
     def test_kubernetes_cluster(self) -> TestResult:
         """Test basic Kubernetes cluster connectivity."""
@@ -147,7 +214,7 @@ class KubernetesTester:
     def test_deployments_status(self) -> TestResult:
         """Test that all deployments are running and healthy."""
         start_time = time.time()
-        deployments = ["asr-deployment", "tts-deployment", "interface-deployment"]
+        deployments = ["voice-ai-deployment"]
 
         failed_deployments = []
         deployment_status = {}
@@ -191,7 +258,7 @@ class KubernetesTester:
 
         success, stdout, stderr = self.run_command([
             "kubectl", "get", "pods",
-            "-l", "app in (asr,tts,interface)",
+            "-l", "app=voice-ai",
             "-o", "jsonpath='{.items[*].status.phase}'"
         ])
 
@@ -226,7 +293,7 @@ class KubernetesTester:
     def test_services_status(self) -> TestResult:
         """Test that all services are properly configured."""
         start_time = time.time()
-        services = ["asr-service", "tts-service", "interface-service"]
+        services = ["voice-ai-service"]
 
         failed_services = []
         service_info = {}
@@ -265,9 +332,9 @@ class KubernetesTester:
         """Test health endpoints of all services."""
         start_time = time.time()
         services = [
-            ("asr-service", "8000", "/health"),
-            ("tts-service", "8001", "/health"),
-            ("interface-service", "7860", "/")
+            ("voice-ai-service", "8000", "/health"),
+            ("voice-ai-service", "8001", "/health"),
+            ("voice-ai-service", "7860", "/")
         ]
 
         failed_health_checks = []
@@ -277,7 +344,7 @@ class KubernetesTester:
             # Get pod name for port forwarding
             success, stdout, stderr = self.run_command([
                 "kubectl", "get", "pods",
-                "-l", f"app={service_name.split('-')[0]}",
+                "-l", f"app=voice-ai",
                 "-o", "jsonpath='{.items[0].metadata.name}'"
             ])
 
@@ -351,7 +418,7 @@ class KubernetesTester:
 
         success, stdout, stderr = self.run_command([
             "kubectl", "top", "pods",
-            "-l", "app in (asr,tts,interface)",
+            "-l", "app=voice-ai",
             "--no-headers"
         ])
 
@@ -388,17 +455,28 @@ class KubernetesTester:
         start_time = time.time()
 
         # Get interface service external URL
-        interface_url = self.get_service_url("interface-service")
+        interface_url = self.get_service_url("voice-ai-service")
 
-        if not interface_url or "localhost" in interface_url:
+        if not interface_url:
             return TestResult(
                 "load_balancing",
                 "SKIPPED",
-                "Load balancing test skipped (no external LoadBalancer URL available)",
+                "Load balancing test skipped (no service URL available)",
                 time.time() - start_time
             )
 
-        # Test multiple requests to check load balancing
+        # For Minikube/local testing, localhost URLs are valid
+        if "localhost" in interface_url:
+            self.log(f"Using local Minikube URL: {interface_url}", "INFO")
+        elif not interface_url.startswith("http://"):
+            return TestResult(
+                "load_balancing",
+                "SKIPPED",
+                f"Load balancing test skipped (invalid URL format: {interface_url})",
+                time.time() - start_time
+            )
+
+        # Test multiple requests to check service availability
         responses = []
         for i in range(5):
             try:
@@ -414,7 +492,7 @@ class KubernetesTester:
             return TestResult(
                 "load_balancing",
                 "PASSED",
-                f"Load balancing working: {success_count}/5 requests successful",
+                f"Service accessibility working: {success_count}/5 requests successful",
                 time.time() - start_time,
                 {"responses": responses, "success_rate": f"{success_count}/5"}
             )
@@ -422,7 +500,7 @@ class KubernetesTester:
             return TestResult(
                 "load_balancing",
                 "FAILED",
-                f"Load balancing issues: only {success_count}/5 requests successful",
+                f"Service accessibility issues: only {success_count}/5 requests successful",
                 time.time() - start_time,
                 {"responses": responses, "success_rate": f"{success_count}/5"}
             )
