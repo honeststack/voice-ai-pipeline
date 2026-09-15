@@ -82,7 +82,7 @@ Components communicate internally within the container, with GPU resources alloc
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/thephiltacular/voice-ai-pipeline.git
+   git clone https://github.com/honeststack/voice-ai-pipeline.git
    cd voice-ai-pipeline
    ```
 
